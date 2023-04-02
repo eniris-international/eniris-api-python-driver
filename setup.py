@@ -7,7 +7,7 @@ with open("README.md", 'r') as f:
 setup(
   name = 'eniris',
   packages = ['eniris'],
-  version = '0.3.0',
+  version = '0.3.1',
   description = 'Eniris API driver for Python',
   license='MIT',
   long_description=long_description,
