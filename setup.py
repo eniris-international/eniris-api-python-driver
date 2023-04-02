@@ -8,7 +8,7 @@ setup(
   author = 'Enris BV',
   author_email = 'info@eniris.be',
   url = 'https://eniris.be',
-  download_url = 'https://github.com/eniris-international/eniris-api-python-driver/archive/v_01.tar.gz',
+  download_url = 'https://github.com/eniris-international/eniris-api-python-driver/archive/refs/tags/v0.1.0.tar.gz',
   keywords = ['eniris', 'api', 'rest'],   # Keywords that define your package best
   install_requires=[
     'requests',
