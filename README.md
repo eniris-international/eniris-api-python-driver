@@ -15,7 +15,7 @@ http_response = driver.get("/v1/device")
 print(http_response['device'][:10])
 driver.close()
 ```
-### Details
+## Details
 The driver constructor accepts the following arguments:
 - username (string, required)
 - password (string, required)
