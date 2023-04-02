@@ -4,7 +4,7 @@ This repository contains the official Eniris API driver for Python. This driver 
 ## Installation
 To install the latest stable version, use:
 ```sh
-pip install neo4j
+pip install eniris
 ```
 ## Quick Example
 ```python
