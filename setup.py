@@ -1,0 +1,23 @@
+from distutils.core import setup
+setup(
+  name = 'eniris',
+  packages = ['eniris'],
+  version = '0.1',
+  license='MIT',
+  description = 'Eniris API driver for Python',
+  author = 'Enris BV',
+  author_email = 'info@eniris.be',
+  url = 'https://eniris.be',
+  download_url = 'https://github.com/eniris-international/eniris-api-python-driver/archive/v_01.tar.gz',
+  keywords = ['eniris', 'api', 'rest'],   # Keywords that define your package best
+  install_requires=[
+    'requests',
+  ],
+  classifiers=[
+    'Development Status :: 3 - Alpha',      # Chose either "3 - Alpha", "4 - Beta" or "5 - Production/Stable" as the current state of your package
+    'Intended Audience :: Developers',
+    'Topic :: Software Development :: Build Tools',
+    'License :: OSI Approved :: MIT License',
+    'Programming Language :: Python :: 3',
+  ],
+)
