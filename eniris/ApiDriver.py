@@ -59,6 +59,7 @@ class ApiDriver:
   def close(self):
     """Log out from the API
     """
+    dt = datetime.datetime.now()
     if self.refreshDtAndToken is None or (dt - self.refreshDtAndToken[0]).total_seconds() > 14*24*60*60: # 14 days
       # The refresh token did already expire, there is no reason to log out
       return
