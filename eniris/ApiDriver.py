@@ -55,7 +55,21 @@ class ApiDriver:
       if resp.status_code != 200:
         raise AuthenticationFailure("accesstoken failed: " + resp.text)
       self.accessDtAndToken = (dt, resp.text)
-    
+      
+  def close(self):
+    """Log out from the API
+    """
+    if self.refreshDtAndToken is None or (dt - self.refreshDtAndToken[0]).total_seconds() > 14*24*60*60: # 14 days
+      # The refresh token did already expire, there is no reason to log out
+      return
+    resp = requests.post(self.authUrl + '/auth/logout', headers = {'Authorization': 'Bearer ' + self.refreshDtAndToken[1]}, timeout=self.timeoutS)
+    if resp.status_code == 204 or resp.status_code == 401:
+      # The refresh token was either succesfully added to the deny list, or it was already invalid
+      self.refreshDtAndToken = None
+      self.accessDtAndToken = None 
+    else:
+      raise AuthenticationFailure("logout failed: " + resp.text)
+      
   def get(self, path:str, params = None, retryNr = 0) -> requests.Response:
     """API GET call
 

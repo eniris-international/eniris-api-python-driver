@@ -12,7 +12,8 @@ from eniris import ApiDriver
 
 driver = ApiDriver("myUsername", "myPassword")
 http_response = driver.get("/v1/device")
-print(http_response['device'][:10])
+response_body = http_response.json()
+print(response_body['device'][:10])
 driver.close()
 ```
 ## Details
