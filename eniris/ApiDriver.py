@@ -56,11 +56,11 @@ class ApiDriver:
         raise AuthenticationFailure("accesstoken failed: " + resp.text)
       self.accessDtAndToken = (dt, resp.text)
     
-  def get(self, relPath:str, params = None, retryNr = 0) -> requests.Response:
+  def get(self, path:str, params = None, retryNr = 0) -> requests.Response:
     """API GET call
 
     Args:
-        relPath (str): Path relative to the baseUrl.
+        path (str): Path relative to the apiUrl.
         params (dict, optional): URL parameters. Defaults to None.
         retryNr (int, optional): How often the call has been tried already. Defaults to 0.
 
@@ -71,16 +71,17 @@ class ApiDriver:
       raise RetryFailure()
     self._authenticate()
     try:
-      return requests.get(self.apiUrl + relPath, params = params, headers = {'Authorization': 'Bearer ' + self.accessDtAndToken[1]}, timeout=self.timeoutS)
+      req_path = path if path.startswith('http://') or path.startswith('https://') else self.apiUrl + path
+      return requests.get(req_path, params = params, headers = {'Authorization': 'Bearer ' + self.accessDtAndToken[1]}, timeout=self.timeoutS)
     except Exception as e:
       logging.debug("Retrying after unexpected exception: " + str(e))
-      return self.get(relPath, params, retryNr+1)
+      return self.get(path, params, retryNr+1)
   
-  def post(self, relPath:str, data = None, json = None, params = None, retryNr = 0) -> requests.Response:
+  def post(self, path:str, json = None, params = None, data = None, retryNr = 0) -> requests.Response:
     """API POST call
 
     Args:
-        relPath (str): Path relative to the baseUrl.
+        path (str): Path relative to the apiUrl.
         json (dict, optional): JSON body. Defaults to None.
         params (dict, optional): URL parameters. Defaults to None.
         retryNr (int, optional): How often the call has been tried already. Defaults to 0.
@@ -92,16 +93,17 @@ class ApiDriver:
       raise RetryFailure()
     self._authenticate()
     try:
-        return requests.post(self.apiUrl + relPath, data = data, json = json, params = params, headers = {'Authorization': 'Bearer ' + self.accessDtAndToken[1]}, timeout=self.timeoutS)
+      req_path = path if path.startswith('http://') or path.startswith('https://') else self.apiUrl + path
+      return requests.post(req_path, json = json, params = params, data = data, headers = {'Authorization': 'Bearer ' + self.accessDtAndToken[1]}, timeout=self.timeoutS)
     except Exception as e:
       logging.debug("Retrying after unexpected exception: " + str(e))
-      return self.post(relPath, json, params, retryNr+1)
+      return self.post(path, json, params, data, retryNr+1)
     
-  def put(self, relPath:str, data = None, json = None, params = None, retryNr = 0) -> requests.Response:
+  def put(self, path:str, json = None, params = None, data = None, retryNr = 0) -> requests.Response:
     """API PUT call
 
     Args:
-        relPath (str): Path relative to the baseUrl.
+        path (str): Path relative to the apiUrl.
         json (dict, optional): JSON body. Defaults to None.
         params (dict, optional): URL parameters. Defaults to None.
         retryNr (int, optional): How often the call has been tried already. Defaults to 0.
@@ -113,16 +115,17 @@ class ApiDriver:
       raise RetryFailure()
     self._authenticate()
     try:
-      return requests.put(self.apiUrl + relPath, data = data, json = json, params = params, headers = {'Authorization': 'Bearer ' + self.accessDtAndToken[1]}, timeout=self.timeoutS)
+      req_path = path if path.startswith('http://') or path.startswith('https://') else self.apiUrl + path
+      return requests.put(req_path, json = json, params = params, data = data, headers = {'Authorization': 'Bearer ' + self.accessDtAndToken[1]}, timeout=self.timeoutS)
     except Exception as e:
       logging.debug("Retrying after unexpected exception: " + str(e))
-      return self.put(relPath, json, params, retryNr+1)
+      return self.put(path, json, params, data, retryNr+1)
   
-  def delete(self, relPath:str, params = None, retryNr = 0) -> requests.Response:
+  def delete(self, path:str, params = None, retryNr = 0) -> requests.Response:
     """API DELETE call
 
     Args:
-        relPath (str): Path relative to the baseUrl.
+        path (str): Path relative to the baseUrl.
         params (dict, optional): URL parameters. Defaults to None.
         retryNr (int, optional): How often the call has been tried already. Defaults to 0.
 
@@ -133,8 +136,9 @@ class ApiDriver:
       raise RetryFailure()
     self._authenticate()
     try:
-      return requests.delete(self.apiUrl + relPath, params = params, headers = {'Authorization': 'Bearer ' + self.accessDtAndToken[1]}, timeout=self.timeoutS)
+      req_path = path if path.startswith('http://') or path.startswith('https://') else self.apiUrl + path
+      return requests.delete(req_path, params = params, headers = {'Authorization': 'Bearer ' + self.accessDtAndToken[1]}, timeout=self.timeoutS)
     except Exception as e:
       logging.debug("Retrying after unexpected exception: " + str(e))
-      return self.delete(relPath, params, retryNr+1)
+      return self.delete(path, params, retryNr+1)
 
