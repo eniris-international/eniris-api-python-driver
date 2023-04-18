@@ -22,8 +22,10 @@ The driver constructor accepts the following arguments:
 - password (string, required)
 - authUrl (string, optional, default: 'https://authentication.eniris.be'): URL of authentication endpoint
 - apiUrl (string, optional, default: 'https://api.eniris.be'): URL of api endpoint
-- maxRetries (int, optional, default: 5): How many times to try again in case of a failure due to connection or unavailability problems
 - timeoutS (int, optional, default: 60): Request timeout in seconds
+- maximumRetries (int, optional, default: 5): How many times to try again in case of a failure due to connection or unavailability problems
+- initialRetryDelayS (int, optional, default: 1): The initial delay between successive retries in seconds.
+- maximumRetryDelayS (int, optional, default: 60): The maximum delay between successive retries in seconds.
 
 Furthermore, the following methods are exposed:
 - get/delete: Send a HTTP GET/DELETE request. The following parameters are allowed:

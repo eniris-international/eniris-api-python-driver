@@ -1,6 +1,7 @@
 import datetime
 import requests
 import logging
+import time
 
 class AuthenticationFailure(Exception):
     "Raised when failing to authentiate to the Insights API"
@@ -12,7 +13,7 @@ class RetryFailure(Exception):
 
 # Provide an easy interface to interact with the API, in the style of the requests library (https://docs.python-requests.org/en/master/)
 class ApiDriver:
-  def __init__(self, username:str, password:str, authUrl:str = 'https://authentication.eniris.be', apiUrl:str = 'https://api.eniris.be',  maxRetries:int = 5, timeoutS:int = 60):
+  def __init__(self, username:str, password:str, authUrl:str = 'https://authentication.eniris.be', apiUrl:str = 'https://api.eniris.be', timeoutS:int = 60, maximumRetries:int = 4, initialRetryDelayS:int=1, maximumRetryDelayS:int=60):
     """Constructor. You must specify at least username and password or a credentialsPath where they are stored as a json of the form {'login': USERNAME, 'password': PASSWORD}
 
     Args:
@@ -20,8 +21,10 @@ class ApiDriver:
         password (str, optional): Insights password of the user
         authUrl (str, optional): Url of authentication endpoint. Defaults to https://authentication.eniris.be
         apiUrl (str, optional): Url of api endpoint. Defaults to https://api.eniris.be
-        maxRetries (int, optional): How many times to try again in case of a failure. Defaults to 5.
-        timeout (int, optional): API timeout in seconds. Defaults to 60.
+        timeoutS (int, optional): API timeout in seconds. Defaults to 60.
+        maximumRetries (int, optional): How many times to try again in case of a failure. Defaults to 4.
+        initialRetryDelayS (int, optional): The initial delay between successive retries in seconds. Defaults to 1.
+        maximumRetryDelayS (int, optional): The maximum delay between successive retries in seconds. Defaults to 60.
 
     Raises:
         Exception: _description_
@@ -30,8 +33,10 @@ class ApiDriver:
     self.password = password
     self.authUrl = authUrl
     self.apiUrl = apiUrl
-    self.maxRetries = maxRetries
     self.timeoutS = timeoutS
+    self.maximumRetries = maximumRetries
+    self.initialRetryDelayS = initialRetryDelayS
+    self.maximumRetryDelayS = maximumRetryDelayS
     self.refreshDtAndToken = None
     self.accessDtAndToken = None
     
@@ -82,15 +87,17 @@ class ApiDriver:
     Returns:
         requests.Response: API call response
     """
-    if retryNr > self.maxRetries:
-      raise RetryFailure()
     self._authenticate()
     try:
       req_path = path if path.startswith('http://') or path.startswith('https://') else self.apiUrl + path
       return requests.get(req_path, params = params, headers = {'Authorization': 'Bearer ' + self.accessDtAndToken[1]}, timeout=self.timeoutS)
     except Exception as e:
-      logging.debug("Retrying after unexpected exception: " + str(e))
-      return self.get(path, params, retryNr+1)
+      if retryNr+1 > self.maximumRetries:
+        raise RetryFailure()
+      else:
+        logging.debug("Retrying after unexpected exception: " + str(e))
+        time.sleep(min(self.initialRetryDelayS*2**retryNr, self.maximumRetryDelayS))
+        return self.get(path, params, retryNr+1)
   
   def post(self, path:str, json = None, params = None, data = None, retryNr = 0) -> requests.Response:
     """API POST call
@@ -104,15 +111,17 @@ class ApiDriver:
     Returns:
         requests.Response: API call response
     """
-    if retryNr > self.maxRetries:
-      raise RetryFailure()
     self._authenticate()
     try:
       req_path = path if path.startswith('http://') or path.startswith('https://') else self.apiUrl + path
       return requests.post(req_path, json = json, params = params, data = data, headers = {'Authorization': 'Bearer ' + self.accessDtAndToken[1]}, timeout=self.timeoutS)
     except Exception as e:
-      logging.debug("Retrying after unexpected exception: " + str(e))
-      return self.post(path, json, params, data, retryNr+1)
+      if retryNr+1 > self.maximumRetries:
+        raise RetryFailure()
+      else:
+        logging.debug("Retrying after unexpected exception: " + str(e))
+        time.sleep(min(self.initialRetryDelayS*2**retryNr, self.maximumRetryDelayS))
+        return self.post(path, json, params, data, retryNr+1)
     
   def put(self, path:str, json = None, params = None, data = None, retryNr = 0) -> requests.Response:
     """API PUT call
@@ -126,15 +135,17 @@ class ApiDriver:
     Returns:
         requests.Response: API call response
     """
-    if retryNr > self.maxRetries:
-      raise RetryFailure()
     self._authenticate()
     try:
       req_path = path if path.startswith('http://') or path.startswith('https://') else self.apiUrl + path
       return requests.put(req_path, json = json, params = params, data = data, headers = {'Authorization': 'Bearer ' + self.accessDtAndToken[1]}, timeout=self.timeoutS)
     except Exception as e:
-      logging.debug("Retrying after unexpected exception: " + str(e))
-      return self.put(path, json, params, data, retryNr+1)
+      if retryNr > self.maximumRetries:
+        raise RetryFailure()
+      else:
+        logging.debug("Retrying after unexpected exception: " + str(e))
+        time.sleep(min(self.initialRetryDelayS*2**retryNr, self.maximumRetryDelayS))
+        return self.put(path, json, params, data, retryNr+1)
   
   def delete(self, path:str, params = None, retryNr = 0) -> requests.Response:
     """API DELETE call
@@ -147,13 +158,14 @@ class ApiDriver:
     Returns:
         requests.Response: API call response
     """
-    if retryNr > self.maxRetries:
-      raise RetryFailure()
     self._authenticate()
     try:
       req_path = path if path.startswith('http://') or path.startswith('https://') else self.apiUrl + path
       return requests.delete(req_path, params = params, headers = {'Authorization': 'Bearer ' + self.accessDtAndToken[1]}, timeout=self.timeoutS)
     except Exception as e:
-      logging.debug("Retrying after unexpected exception: " + str(e))
-      return self.delete(path, params, retryNr+1)
-
+      if retryNr > self.maximumRetries:
+        raise RetryFailure()
+      else:
+        logging.debug("Retrying after unexpected exception: " + str(e))
+        time.sleep(min(self.initialRetryDelayS*2**retryNr, self.maximumRetryDelayS))
+        return self.delete(path, params, retryNr+1)
