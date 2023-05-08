@@ -26,6 +26,7 @@ The driver constructor accepts the following arguments:
 - maximumRetries (int, optional, default: 5): How many times to try again in case of a failure due to connection or unavailability problems
 - initialRetryDelayS (int, optional, default: 1): The initial delay between successive retries in seconds.
 - maximumRetryDelayS (int, optional, default: 60): The maximum delay between successive retries in seconds.
+- session (requests.Session, optional, default: requests.Session()): A session object to use for all API calls.
 
 Furthermore, the following methods are exposed:
 - get/delete: Send a HTTP GET/DELETE request. The following parameters are allowed:
