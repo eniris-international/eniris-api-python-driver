@@ -1,4 +1,4 @@
-from typing import Union, Callable
+from typing import Callable
 import datetime
 import requests
 import logging
@@ -57,26 +57,27 @@ class ApiDriver:
     self.accessDtAndToken = None
     self.session = requests.Session() if session is None else session
     
-  def _authenticate(self):
+  def accesstoken(self):
     dt = datetime.datetime.now()
     if self.refreshDtAndToken is None or (dt - self.refreshDtAndToken[0]).total_seconds() > 13*24*60*60: # 13 days
       data = { "username": self.username, "password": self.password }
-      resp = self.session.post(self.authUrl + '/auth/login', json = data, timeout=self.timeoutS)
+      resp = self.session.post(f'{self.authUrl}/auth/login', json = data, timeout=self.timeoutS)
       if resp.status_code != 200:
-        raise AuthenticationFailure("login failed: " + resp.text)
+        raise AuthenticationFailure(f"login failed: {resp.text}")
       self.refreshDtAndToken = (dt, resp.text)
     elif (dt - self.refreshDtAndToken[0]).total_seconds() > 7*24*60*60: # 7 days
-      resp = self.session.get(self.authUrl + '/auth/refreshtoken', headers = {'Authorization': 'Bearer ' + self.refreshDtAndToken[1]}, timeout=self.timeoutS)
+      resp = self.session.get(f"{self.authUrl}/auth/refreshtoken", headers = {'Authorization': f"Bearer {self.refreshDtAndToken[1]}"}, timeout=self.timeoutS)
       if resp.status_code == 200:
         self.refreshDtAndToken = (dt, resp.text)
       else:
         # Not the biggest problem, sice the refresh token will still be valid for a while, but we should log an exception
-        logging.warning("Unable to renew the refresh token: " + resp.text)
+        logging.warning(f"Unable to renew the refresh token: {resp.text}")
     if self.accessDtAndToken is None or (dt - self.accessDtAndToken[0]).total_seconds() > 2*60: # 2 minutes
-      resp = self.session.get(self.authUrl + '/auth/accesstoken', headers = {'Authorization': 'Bearer ' + self.refreshDtAndToken[1]}, timeout=self.timeoutS)
+      resp = self.session.get(f"{self.authUrl}/auth/accesstoken", headers = {'Authorization': f"Bearer {self.refreshDtAndToken[1]}"}, timeout=self.timeoutS)
       if resp.status_code != 200:
-        raise AuthenticationFailure("accesstoken failed: " + resp.text)
+        raise AuthenticationFailure(f"accesstoken failed: {resp.text}")
       self.accessDtAndToken = (dt, resp.text)
+    return self.accessDtAndToken[1]
       
   def close(self):
     """Log out from the API
@@ -85,13 +86,13 @@ class ApiDriver:
     if self.refreshDtAndToken is None or (dt - self.refreshDtAndToken[0]).total_seconds() > 14*24*60*60: # 14 days
       # The refresh token did already expire, there is no reason to log out
       return
-    resp = self.session.post(self.authUrl + '/auth/logout', headers = {'Authorization': 'Bearer ' + self.refreshDtAndToken[1]}, timeout=self.timeoutS)
+    resp = self.session.post(f"{self.authUrl}/auth/logout", headers = {'Authorization': f"Bearer {self.refreshDtAndToken[1]}"}, timeout=self.timeoutS)
     if resp.status_code == 204 or resp.status_code == 401:
       # The refresh token was either succesfully added to the deny list, or it was already invalid
       self.refreshDtAndToken = None
       self.accessDtAndToken = None 
     else:
-      raise AuthenticationFailure("logout failed: " + resp.text)
+      raise AuthenticationFailure(f"logout failed: {resp.text}")
   
   def __retry(self, requests_function:Callable, path:str, retryNr = 0, **req_function_kwargs) -> requests.Response:
     """Execute the given requests_function with the provided req_function_kwargs keyword arguments. If the function fails, it will try again until the amount of retries has exceeded.
@@ -133,8 +134,7 @@ class ApiDriver:
     Returns:
         requests.Response: API call response
     """
-    self._authenticate()
-    return self.__retry(self.session.get, path, params = params, headers = {'Authorization': 'Bearer ' + self.accessDtAndToken[1]}, timeout=self.timeoutS)
+    return self.__retry(self.session.get, path, params = params, headers = {'Authorization': f'Bearer {self.accesstoken()}'}, timeout=self.timeoutS)
 
   def post(self, path:str, json = None, params = None, data = None, **kwargs) -> requests.Response:
     """API POST call()
@@ -147,8 +147,7 @@ class ApiDriver:
     Returns:
         requests.Response: API call response
     """
-    self._authenticate()
-    return self.__retry(self.session.post, path, json = json, params = params, data = data, headers = {'Authorization': 'Bearer ' + self.accessDtAndToken[1]}, timeout=self.timeoutS)
+    return self.__retry(self.session.post, path, json = json, params = params, data = data, headers = {'Authorization': f'Bearer {self.accesstoken()}'}, timeout=self.timeoutS)
     
   def put(self, path:str, json = None, params = None, data = None, **kwargs) -> requests.Response:
     """API PUT call
@@ -161,8 +160,7 @@ class ApiDriver:
     Returns:
         requests.Response: API call response
     """
-    self._authenticate()
-    return self.__retry(self.session.put, path, json = json, params = params, data = data, headers = {'Authorization': 'Bearer ' + self.accessDtAndToken[1]}, timeout=self.timeoutS)
+    return self.__retry(self.session.put, path, json = json, params = params, data = data, headers = {'Authorization': f'Bearer {self.accesstoken()}'}, timeout=self.timeoutS)
   
   def delete(self, path:str, params = None, **kwargs) -> requests.Response:
     """API DELETE call
@@ -174,5 +172,4 @@ class ApiDriver:
     Returns:
         requests.Response: API call response
     """
-    self._authenticate()
-    return self.__retry(self.session.delete, path, params = params, headers = {'Authorization': 'Bearer ' + self.accessDtAndToken[1]}, timeout=self.timeoutS)
+    return self.__retry(self.session.delete, path, params = params, headers = {'Authorization': f'Bearer {self.accesstoken()}'}, timeout=self.timeoutS)

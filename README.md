@@ -29,6 +29,7 @@ The driver constructor accepts the following arguments:
 - session (requests.Session, optional, default: requests.Session()): A session object to use for all API calls.
 
 Furthermore, the following methods are exposed:
+- accesstoken: Get a currently valid accesstoken
 - get/delete: Send a HTTP GET/DELETE request. The following parameters are allowed:
   - path (string, required): Either a path relative to the apiUrl, or a full URL path
   - params (dict, optional, default: None): URL query parameters

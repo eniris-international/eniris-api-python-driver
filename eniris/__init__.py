@@ -1,1 +1,1 @@
-from eniris.ApiDriver import ApiDriver
+from eniris.ApiDriver import ApiDriver, AuthenticationFailure
