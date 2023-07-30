@@ -16,16 +16,3 @@ class TelemessagePrinter(TelemessageWriter):
 
   def __del__(self):
     self.flush()
-  
-class TelemessageWriterDecorator(TelemessageWriter):
-  """A base class for classed which send their output to a telemessage writer. This class should be inherited from"""
-  def __init__(self, output: TelemessageWriter):
-    self.output = output
-
-  def flush(self):
-    """Flush any internal state, i.e. make sure that any internally stored or buffered messages are transmitted and then flush the output"""
-    self._flush()
-    self.output.flush()
-  
-  def _flush(self):
-    pass

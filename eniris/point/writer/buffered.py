@@ -5,9 +5,9 @@ from threading import RLock, Thread, Condition
 from typing import Union
 
 from eniris.point import Point, Namespace, FieldSet
-from eniris.point.writer import PointWriter
+from eniris.point.writer import PointToTelemessageWriter
 from eniris.telemessage import Telemessage
-from eniris.telemessage.writer import TelemessageWriterDecorator
+from eniris.telemessage.writer import TelemessageWriter
 
 @dataclass
 class PointBuffer:
@@ -111,8 +111,8 @@ class PointBufferDict:
       self.nrBytes = 0
     return messages
 
-class BufferedPointToTelemessageWriter(TelemessageWriterDecorator, PointWriter):
-  def __init__(self, output: PointWriter,
+class BufferedPointToTelemessageWriter(PointToTelemessageWriter):
+  def __init__(self, output: TelemessageWriter,
         lingerTimeS:float=0.1,
         maximumBatchSizeBytes:int=1_000_000,
         maximumBufferSizeBytes:int=10_000_000):
@@ -140,7 +140,7 @@ class BufferedPointToTelemessageWriter(TelemessageWriterDecorator, PointWriter):
     self.flush()
 
 class BufferedPointToTelemessageWriterDaemon(Thread):
-  def __init__(self, output: PointWriter, pointBufferDict: PointBufferDict, lingerTimeS:float=0.1):
+  def __init__(self, output: TelemessageWriter, pointBufferDict: PointBufferDict, lingerTimeS:float=0.1):
     super().__init__()
     self.output = output
     self.pointBufferDict = pointBufferDict

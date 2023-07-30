@@ -1,9 +1,9 @@
 from eniris.point import Point
-from eniris.point.writer import PointWriter
+from eniris.point.writer import PointToTelemessageWriter
 from eniris.telemessage import Telemessage
-from eniris.telemessage.writer import TelemessageWriter, TelemessageWriterDecorator
+from eniris.telemessage.writer import TelemessageWriter
 
-class DirectPointToTelemessageWriter(TelemessageWriterDecorator, PointWriter):
+class DirectPointToTelemessageWriter(PointToTelemessageWriter):
   def __init__(self, output: TelemessageWriter, maximumBatchSizeBytes:int=1_000_000):
     super().__init__(output)
     self.maximumBatchSizeBytes = maximumBatchSizeBytes
