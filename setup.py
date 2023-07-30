@@ -18,7 +18,7 @@ setup(
   download_url = 'https://github.com/eniris-international/eniris-api-python-driver/archive/refs/tags/v0.6.0.tar.gz',
   keywords = ['eniris', 'api', 'rest'],   # Keywords that define your package best
   install_requires=[
-    'requests',
+    'requests'
   ],
   classifiers=[
     'Development Status :: 4 - Beta',      # Chose either "3 - Alpha", "4 - Beta" or "5 - Production/Stable" as the current state of your package
