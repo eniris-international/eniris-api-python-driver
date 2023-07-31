@@ -18,9 +18,9 @@ class DirectTelemessageWriter(TelemessageWriter):
   """Write telemessages (telemetry messages) to a specific endpoint in a blocking fashion:
   using this class to write messages will block a sending thread until the message is succesfully transmitted or an exception is raised.
   """
-  def __init__(self, url: str="https://neodata-ingress.eniris.be/v1/telemetry", params: dict[str, str]={}, authorizationHeaderFunction: Callable|None = None, timeoutS:float=60,
-               maximumRetries:int = 4, initialRetryDelayS:int=1, maximumRetryDelayS:int=60, retryStatusCodes:set[int]=set([HTTPStatus.TOO_MANY_REQUESTS,HTTPStatus.INTERNAL_SERVER_ERROR,HTTPStatus.SERVICE_UNAVAILABLE]),
-               session: Session=None):
+  def __init__(self, url:str="https://neodata-ingress.eniris.be/v1/telemetry", params:dict[str, str]={}, authorizationHeaderFunction:Callable|None=None, timeoutS:float=60,
+               maximumRetries:int=4, initialRetryDelayS:int=1, maximumRetryDelayS:int=60, retryStatusCodes:set[int]=set([HTTPStatus.TOO_MANY_REQUESTS,HTTPStatus.INTERNAL_SERVER_ERROR,HTTPStatus.SERVICE_UNAVAILABLE]),
+               session:Session=None):
     self.url = url
     self.params = params
     self.authorizationHeaderFunction = authorizationHeaderFunction
