@@ -146,45 +146,45 @@ class BufferedPointToTelemessageWriterDaemon(Thread):
     self.pointBufferDict = pointBufferDict
     self.daemon = True
     self.lingerTimeS = lingerTimeS
+    self.isKilled: Condition = Condition(self.pointBufferDict.lock)
 
   def run(self):
     logging.debug("Started BufferedPointToTelemessageWriterDaemon")
-    self.pointBufferDict.lock.acquire()
-    while True:
-      while self.output is not None and len(self.pointBufferDict.namespace2buffer) == 0:
-        self.pointBufferDict.hasNewContent.wait()
-      if self.output is None:
-        logging.debug("Stopped BufferedPointToTelemessageWriterDaemon")
-        return
-      curDt = datetime.now(timezone.utc)
-      # Empty the buffers with old content
-      thresholdDt = curDt - timedelta(seconds=self.lingerTimeS)
-      newNamespace2buffer = dict()
-      for key in self.pointBufferDict.namespace2buffer:
-        buffer = self.pointBufferDict.namespace2buffer[key]
-        if buffer.creationDt < thresholdDt:
-          try:
-            self.output.writeTelemessage(buffer.toTelemessage())
-          except:
-            logging.exception("Failed to write Telemessage from BufferedPointToTelemessageWriterDaemon.run")
-          self.pointBufferDict.nrBytes -= buffer.nrBytes
-        else:
-          newNamespace2buffer[key] = buffer
-      self.pointBufferDict.namespace2buffer = newNamespace2buffer
-      # Check which buffer needs to be emptied next and sleep for an appropriate amount of time
-      minCreationDt: datetime|None = None
-      for buffer in self.pointBufferDict.namespace2buffer.values():
-        if minCreationDt is None or buffer.creationDt<minCreationDt:
-          minCreationDt = buffer.creationDt
-      if minCreationDt is not None:
-        nextWakeupDt = minCreationDt + timedelta(seconds=self.lingerTimeS)
-        sleepTimeS = nextWakeupDt.timestamp()-time.time()
-        if sleepTimeS>0:
-          self.pointBufferDict.lock.release()
-          time.sleep(sleepTimeS)
-          self.pointBufferDict.lock.acquire()
+    with self.pointBufferDict.lock:
+      while True:
+        while self.output is not None and len(self.pointBufferDict.namespace2buffer) == 0:
+          self.pointBufferDict.hasNewContent.wait()
+        if self.output is None:
+          logging.debug("Stopped BufferedPointToTelemessageWriterDaemon")
+          return
+        curDt = datetime.now(timezone.utc)
+        # Empty the buffers with old content
+        thresholdDt = curDt - timedelta(seconds=self.lingerTimeS)
+        newNamespace2buffer = dict()
+        for key in self.pointBufferDict.namespace2buffer:
+          buffer = self.pointBufferDict.namespace2buffer[key]
+          if buffer.creationDt < thresholdDt:
+            try:
+              self.output.writeTelemessage(buffer.toTelemessage())
+            except:
+              logging.exception("Failed to write Telemessage from BufferedPointToTelemessageWriterDaemon.run")
+            self.pointBufferDict.nrBytes -= buffer.nrBytes
+          else:
+            newNamespace2buffer[key] = buffer
+        self.pointBufferDict.namespace2buffer = newNamespace2buffer
+        # Check which buffer needs to be emptied next and sleep for an appropriate amount of time
+        minCreationDt: datetime|None = None
+        for buffer in self.pointBufferDict.namespace2buffer.values():
+          if minCreationDt is None or buffer.creationDt<minCreationDt:
+            minCreationDt = buffer.creationDt
+        if minCreationDt is not None:
+          nextWakeupDt = minCreationDt + timedelta(seconds=self.lingerTimeS)
+          sleepTimeS = nextWakeupDt.timestamp()-time.time()
+          if sleepTimeS>0:
+            self.isKilled.wait(sleepTimeS)
 
   def stop(self):
     with self.pointBufferDict.lock:
       self.output = None
+      self.isKilled.notify()
       self.pointBufferDict.hasNewContent.notify()
