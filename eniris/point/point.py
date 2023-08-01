@@ -164,13 +164,6 @@ class Point:
   tags: TagSet
   fields: FieldSet
 
-  def __init__(self, namespace: Namespace, measurement: str, time: 'datetime|None', tags: 'TagSet|Mapping[str, str]', fields: 'FieldSet|Mapping[str, bool|int|float|str]'):
-    self.namespace = namespace
-    self.measurement = measurement
-    self.time = time
-    self.tags = tags
-    self.fields = fields
-
   @staticmethod
   def validateNamespace(ns: Namespace):
     if not isinstance(ns, Namespace):
