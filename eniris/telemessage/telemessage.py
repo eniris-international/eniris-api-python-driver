@@ -10,5 +10,8 @@ class Telemessage(object):
     self.parameters = parameters
     self.lines = lines
 
+  def nrBytes(self):
+    return sum(len(line) for line in self.lines)
+
   def toJson(self):
     return asdict(self)
