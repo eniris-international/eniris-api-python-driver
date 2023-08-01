@@ -105,8 +105,7 @@ class TelemessageWrapper:
         logging.error(f"Maximum number of retries exceeded, dropping telemessage due to {reason}")
         self.finish(queue)
         return
-    queue.removeActive(self)
-    queue.pushWaiting(self)
+    queue.addWaiting(self)
 
   def finish(self, queue):
     with self._lock:
@@ -149,7 +148,7 @@ class TelemessageWrapperQueue:
     with self._lock:
       del self._activeMessages[tmw.id]
 
-  def popWaitingAndAddToActive(self):
+  def onWaitingToActive(self):
     with self._lock:
       while True:
         if len(self._waitingMessages) > 0:
@@ -167,13 +166,16 @@ class TelemessageWrapperQueue:
         else:
           self._moreMessagesOrStoppingCondition.wait()
       
-  def pushWaiting(self, tmw: TelemessageWrapper):
+  def addWaiting(self, tmw: TelemessageWrapper):
     with self._lock:
       currentFirstWaitingMessage = self._waitingMessages[0] if len(self._waitingMessages) > 0 else None
       heappush(self._waitingMessages, tmw)
       if currentFirstWaitingMessage is None or tmw.scheduledDt < currentFirstWaitingMessage.scheduledDt:
         self._moreMessagesOrStoppingCondition.notify()
-      self._newMessageOrStoppingCondition.notifyAll() # TODO: Only call this when the message is really real, and not when it is requeued
+      if tmw.id in self._activeMessages:
+        del self._activeMessages[tmw.id]
+      else:
+        self._newMessageOrStoppingCondition.notifyAll()
   
   def getContentOnNewMessage(self, latestKnownTmw: TelemessageWrapper=None):
     with self._lock:
@@ -213,7 +215,7 @@ class PooledTelemessageWriterDaemon(Thread):
   def run(self):
     logging.debug("Started PooledTelemessageWriterDaemon")
     while True:
-      tmw = self.queue.popWaitingAndAddToActive()
+      tmw = self.queue.onWaitingToActive()
       if tmw is None:
         logging.debug("Stopped PooledTelemessageWriterDaemon")
         return
@@ -317,7 +319,7 @@ class PooledTelemessageWriter(TelemessageWriter):
     """
     Write a single telemetry message to the API
     """
-    self.queue.pushWaiting(TelemessageWrapper(tm))
+    self.queue.addWaiting(TelemessageWrapper(tm))
 
   def flush(self):
     for tmw in self.queue.content():
