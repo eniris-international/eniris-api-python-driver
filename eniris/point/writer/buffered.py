@@ -63,13 +63,12 @@ class PointBuffer:
     return Telemessage(self.namespace.toUrlParameters(), [dp.toLineProtocol().encode("utf-8") for dp in self.toPoints()])
   
 class PointBufferDict:
-  lock = RLock()
-  namespace2buffer: 'dict[frozenset[tuple[str, str]], PointBuffer]' = dict()
-  nrBytes: int = 0
-
   def __init__(self,
         maximumBatchSizeBytes:int=1_000_000,
         maximumBufferSizeBytes:int=10_000_000):
+    self.lock = RLock()
+    self.namespace2buffer: 'dict[frozenset[tuple[str, str]], PointBuffer]' = dict()
+    self.nrBytes = 0
     self.maximumBatchSizeBytes = maximumBatchSizeBytes
     self.maximumBufferSizeBytes = maximumBufferSizeBytes
     self.hasNewContent: Condition = Condition(self.lock)
