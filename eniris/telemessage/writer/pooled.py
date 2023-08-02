@@ -93,7 +93,7 @@ class TelemessageWrapper:
         logging.debug(f"Saved Telemessage to '{snapshotPath}'")
         self._snapshotPath = snapshotPath
       except:
-        logging.exception(f"Failed to save Telemessage to '{snapshotPath}'")
+        logging.exception(f"Failed to save Telemessage to '{dirname}'")
 
   def removeSnapshot(self):
     with self._lock:
@@ -285,27 +285,30 @@ class PooledTelemessageSnapshotDaemon(Thread):
         logging.debug("Stopped PooledTelemessageSnapshotDaemon")
         return
       content.sort(key=lambda x: x.id)
-      currentlySnapshottedIds = {el.id for el in content if el.hasSnapshot()}
-      thresholdDt = datetime.now(timezone.utc)-timedelta(seconds=self.minimumSnaphotAgeS)
-      desiredSnapshottedIds = set()
-      usedBytes = 0
-      for el in reversed(content):
-        if el.creationDt < thresholdDt:
-          if usedBytes + el.telemessage.nrBytes() < self.maximumSnapshotStorageBytes:
-            desiredSnapshottedIds.add(el.id)
-      for el in content:
-        if el.id in currentlySnapshottedIds and el.id not in desiredSnapshottedIds:
-          el.removeSnapshot()
-      for el in content:
-        if el.id not in currentlySnapshottedIds and el.id in desiredSnapshottedIds:
-          el.saveSnapshot(self.snapshotFolder)
-      nextMessageToBeSnapshotted = None
-      for el in content:
-        if el.creationDt >= thresholdDt:
-          nextMessageToBeSnapshotted = el
-          break
+      nextMessageToBeSnapshotted = self.fixSnaphots(content)
       if len(content) > 0:
         lastMessage = content[-1]
+
+  def fixSnaphots(self, content: list[TelemessageWrapper], useAgeLimit=True):
+    content.sort(key=lambda x: x.id)
+    currentlySnapshottedIds = {el.id for el in content if el.hasSnapshot()}
+    thresholdDt = datetime.now(timezone.utc)-timedelta(seconds=self.minimumSnaphotAgeS)
+    desiredSnapshottedIds = set()
+    usedBytes = 0
+    for el in reversed(content):
+      if not useAgeLimit or el.creationDt < thresholdDt:
+        if usedBytes + el.telemessage.nrBytes() < self.maximumSnapshotStorageBytes:
+          desiredSnapshottedIds.add(el.id)
+    for el in content:
+      if el.id in currentlySnapshottedIds and el.id not in desiredSnapshottedIds:
+        el.removeSnapshot()
+    for el in content:
+      if el.id not in currentlySnapshottedIds and el.id in desiredSnapshottedIds:
+        el.saveSnapshot(self.snapshotFolder)
+    for el in content:
+      if el.creationDt >= thresholdDt:
+        return el
+    return None
 
 class PooledTelemessageWriter(TelemessageWriter):
   """Write telemessages (telemetry messages) to a specific endpoint in a blocking fashion:
@@ -340,6 +343,8 @@ class PooledTelemessageWriter(TelemessageWriter):
     if snapshotFolder is not None:
       self.snapshotDaemon = PooledTelemessageSnapshotDaemon(self.queue, snapshotFolder, minimumSnaphotAgeS, maximumSnapshotStorageBytes)
       self.snapshotDaemon.start()
+    else:
+      self.snapshotDaemon = None
   
   def writeTelemessage(self, tm: Telemessage):
     """
@@ -353,4 +358,8 @@ class PooledTelemessageWriter(TelemessageWriter):
 
   def __del__(self):
     self.queue.stop()
-    self.flush()
+    for d in self.pool:
+      d.join()
+    if self.snapshotDaemon is not None:
+      self.snapshotDaemon.join()
+      #self.snapshotDaemon.fixSnaphots(self.queue.content(), False)
