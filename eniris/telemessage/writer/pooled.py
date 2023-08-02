@@ -58,7 +58,7 @@ class TelemessageWrapper:
           telemessage = TelemessageWrapper.loadSnapshot(snapshotPath)
           if telemessage is not None:
             snapshots.append(telemessage)
-            logging.debug(f"Loaded Telemessage from '{snapshotPath}'")
+            logging.info(f"Loaded Telemessage from '{snapshotPath}'")
         except:
           logging.exception(f"Failed to load Telemessage from '{snapshotPath}'")
       logging.debug(f"Finished loading Telemessages from '{dir}'")
@@ -90,7 +90,7 @@ class TelemessageWrapper:
         snapshotPath = os.path.join(dirname, self._filename())
         with open(snapshotPath, 'wb') as f:
           pickle.dump(self.telemessage, f)
-        logging.debug(f"Saved Telemessage to '{snapshotPath}'")
+        logging.info(f"Saved Telemessage to '{snapshotPath}'")
         self._snapshotPath = snapshotPath
       except:
         logging.exception(f"Failed to save Telemessage to '{dirname}'")
@@ -101,10 +101,10 @@ class TelemessageWrapper:
         return
       try:
         os.remove(self._snapshotPath)
-        logging.debug(f"Removed Telemessage from '{self._snapshotPath}'")
+        logging.info(f"Removed Telemessage from '{self._snapshotPath}'")
         self._snapshotPath = None
       except:
-        logging.exception(f"Failed to remove a snapshot from '{self._snapshotPath}'")
+        logging.exception(f"Failed to remove a Telemessage from '{self._snapshotPath}'")
 
   def updateSnapshot(self):
     with self._lock:
@@ -112,7 +112,7 @@ class TelemessageWrapper:
         newSnapshotPath = os.path.join(os.path.dirname(self._snapshotPath), self._filename())
         try:
           os.rename(self._snapshotPath, newSnapshotPath)
-          logging.debug(f"Moved Telemessage from '{self._snapshotPath}' to '{newSnapshotPath}'")
+          logging.info(f"Moved Telemessage from '{self._snapshotPath}' to '{newSnapshotPath}'")
           self._snapshotPath = newSnapshotPath
         except:
           logging.exception(f"Failed to move Telemessage from '{self._snapshotPath}' to '{newSnapshotPath}'")

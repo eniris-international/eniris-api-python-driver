@@ -9,6 +9,15 @@ from eniris.point.writer import PointToTelemessageWriter
 from eniris.telemessage import Telemessage
 from eniris.telemessage.writer import TelemessageWriter
 
+NANOSECOND_CONVERSION = 10**9
+
+def createPointKey(point: Point):
+    return (
+        point.measurement,
+        int(point.time.timestamp() * NANOSECOND_CONVERSION),
+        frozenset((tagKey, point.tags[tagKey]) for tagKey in point.tags)
+    )
+
 @dataclass
 class PointBuffer:
   namespace: Namespace
@@ -24,11 +33,11 @@ class PointBuffer:
     
   def calculateNrExtraBytes(self, point: Point) -> int:
     nrExtraBytes = 0
-    pointKey = (point.measurement, int(point.time.timestamp()*10**9), frozenset((tagKey, point.tags[tagKey]) for tagKey in point.tags))
+    pointKey = createPointKey(point.measurement)
     if pointKey not in self.pointMap:
       nrExtraBytes += len(Point.escapeMeasurement(point.measurement)) + \
               (1 + len(point.tags.toLineProtocol()) if len(point.tags) > 0 else 0) + \
-              (1 + len(str(int(point.time.timestamp()*1_000_000_000))) if point.time is not None else 0) + \
+              (1 + len(str(int(point.time.timestamp()*NANOSECOND_CONVERSION))) if point.time is not None else 0) + \
               1
       existingFields = dict()
     else:
@@ -43,7 +52,7 @@ class PointBuffer:
 
   def append(self, point: Point):
     self.nrBytes += self.calculateNrExtraBytes(point)
-    pointKey = (point.measurement, int(point.time.timestamp()*10**9), frozenset((tagKey, point.tags[tagKey]) for tagKey in point.tags))
+    pointKey = createPointKey(point)
     if pointKey not in self.pointMap:
       self.pointMap[pointKey] = dict()
     existingFields = self.pointMap[pointKey]
@@ -54,60 +63,59 @@ class PointBuffer:
   def toPoints(self):
     return [
       Point(
-        self.namespace, measurement, datetime.fromtimestamp(time/10**9, tz=timezone.utc),
+        self.namespace, measurement, datetime.fromtimestamp(time/NANOSECOND_CONVERSION, tz=timezone.utc),
         {el[0]: el[1] for el in tagSet}, self.pointMap[(measurement, time, tagSet)]
       ) for (measurement, time, tagSet) in self.pointMap
     ]
   
   def toTelemessage(self):
-    return Telemessage(self.namespace.toUrlParameters(), [dp.toLineProtocol().encode("utf-8") for dp in self.toPoints()])
+    return Telemessage(self.namespace.toUrlParameters(), [p.toLineProtocol().encode("utf-8") for p in self.toPoints()])
   
 class PointBufferDict:
   def __init__(self,
         maximumBatchSizeBytes:int=1_000_000,
         maximumBufferSizeBytes:int=10_000_000):
-    self.lock = RLock()
-    self.namespace2buffer: 'dict[frozenset[tuple[str, str]], PointBuffer]' = dict()
-    self.nrBytes = 0
     self.maximumBatchSizeBytes = maximumBatchSizeBytes
     self.maximumBufferSizeBytes = maximumBufferSizeBytes
-    self.hasNewContent: Condition = Condition(self.lock)
+    self._lock = RLock()
+    self._namespace2buffer: 'dict[frozenset[tuple[str, str]], PointBuffer]' = dict()
+    self._nrBytes = 0
+    self._hasNewContent: Condition = Condition(self._lock)
 
   def writePoints(self, points: list[Point]):
     messages: list[Telemessage] = []
     if len(points) == 0:
       return messages
-    with self.lock:
+    with self._lock:
       # Add all points to namespace2buffer
-      for dp in points:
-        namespace_parameters = dp.namespace.toUrlParameters()
+      for point in points:
+        namespace_parameters = point.namespace.toUrlParameters()
         namespace_key = frozenset((key, namespace_parameters[key]) for key in namespace_parameters)
-        if namespace_key not in self.namespace2buffer:
-          self.namespace2buffer[namespace_key] = PointBuffer(dp.namespace)
-        buffer = self.namespace2buffer[namespace_key]
-        dpNrExtraBytes = buffer.calculateNrExtraBytes(dp)
-        if buffer.nrBytes > 0 and buffer.nrBytes + dpNrExtraBytes > self.maximumBatchSizeBytes:
+        if namespace_key not in self._namespace2buffer:
+          self._namespace2buffer[namespace_key] = PointBuffer(point.namespace)
+        buffer = self._namespace2buffer[namespace_key]
+        if buffer.nrBytes > 0 and buffer.nrBytes + buffer.calculateNrExtraBytes(point) > self.maximumBatchSizeBytes:
           messages.append(buffer.toTelemessage())
-          self.nrBytes -= buffer.nrBytes
-          buffer = PointBuffer(dp.namespace)
-          self.namespace2buffer[namespace_key] = buffer
-        self.nrBytes -= buffer.nrBytes
-        buffer.append(dp)
-        self.nrBytes += buffer.nrBytes
+          self._nrBytes -= buffer.nrBytes
+          buffer = PointBuffer(point.namespace)
+          self._namespace2buffer[namespace_key] = buffer
+        self._nrBytes -= buffer.nrBytes
+        buffer.append(point)
+        self._nrBytes += buffer.nrBytes
       # Check whether an immediate flush is required
-      if self.nrBytes > self.maximumBufferSizeBytes:
+      if self._nrBytes > self.maximumBufferSizeBytes:
         messages += self.flush()
       else:
-        self.hasNewContent.notify()
+        self._hasNewContent.notify()
     return messages
   
   def flush(self):
     messages: list[Telemessage] = []
-    with self.lock:
-      for buffer in self.namespace2buffer.values():
+    with self._lock:
+      for buffer in self._namespace2buffer.values():
         messages.append(buffer.toTelemessage())
-      self.namespace2buffer = dict()
-      self.nrBytes = 0
+      self._namespace2buffer = dict()
+      self._nrBytes = 0
     return messages
 
 class BufferedPointToTelemessageWriter(PointToTelemessageWriter):
@@ -141,49 +149,49 @@ class BufferedPointToTelemessageWriter(PointToTelemessageWriter):
 class BufferedPointToTelemessageWriterDaemon(Thread):
   def __init__(self, output: TelemessageWriter, pointBufferDict: PointBufferDict, lingerTimeS:float=0.1):
     super().__init__()
-    self.output = output
+    self.lingerTimeS = lingerTimeS
     self.pointBufferDict = pointBufferDict
     self.daemon = True
-    self.lingerTimeS = lingerTimeS
-    self.isKilled: Condition = Condition(self.pointBufferDict.lock)
+    self._output = output
+    self._isKilled: Condition = Condition(self.pointBufferDict._lock)
 
   def run(self):
     logging.debug("Started BufferedPointToTelemessageWriterDaemon")
-    with self.pointBufferDict.lock:
+    with self.pointBufferDict._lock:
       while True:
-        while self.output is not None and len(self.pointBufferDict.namespace2buffer) == 0:
-          self.pointBufferDict.hasNewContent.wait()
-        if self.output is None:
+        while self._output is not None and len(self.pointBufferDict._namespace2buffer) == 0:
+          self.pointBufferDict._hasNewContent.wait()
+        if self._output is None:
           logging.debug("Stopped BufferedPointToTelemessageWriterDaemon")
           return
         curDt = datetime.now(timezone.utc)
         # Empty the buffers with old content
         thresholdDt = curDt - timedelta(seconds=self.lingerTimeS)
         newNamespace2buffer = dict()
-        for key in self.pointBufferDict.namespace2buffer:
-          buffer = self.pointBufferDict.namespace2buffer[key]
+        for key in self.pointBufferDict._namespace2buffer:
+          buffer = self.pointBufferDict._namespace2buffer[key]
           if buffer.creationDt < thresholdDt:
             try:
-              self.output.writeTelemessage(buffer.toTelemessage())
+              self._output.writeTelemessage(buffer.toTelemessage())
             except:
               logging.exception("Failed to write Telemessage from BufferedPointToTelemessageWriterDaemon.run")
-            self.pointBufferDict.nrBytes -= buffer.nrBytes
+            self.pointBufferDict._nrBytes -= buffer.nrBytes
           else:
             newNamespace2buffer[key] = buffer
-        self.pointBufferDict.namespace2buffer = newNamespace2buffer
+        self.pointBufferDict._namespace2buffer = newNamespace2buffer
         # Check which buffer needs to be emptied next and sleep for an appropriate amount of time
         minCreationDt: datetime|None = None
-        for buffer in self.pointBufferDict.namespace2buffer.values():
+        for buffer in self.pointBufferDict._namespace2buffer.values():
           if minCreationDt is None or buffer.creationDt<minCreationDt:
             minCreationDt = buffer.creationDt
         if minCreationDt is not None:
           nextWakeupDt = minCreationDt + timedelta(seconds=self.lingerTimeS)
           sleepTimeS = nextWakeupDt.timestamp()-time.time()
           if sleepTimeS>0:
-            self.isKilled.wait(sleepTimeS)
+            self._isKilled.wait(sleepTimeS)
 
   def stop(self):
-    with self.pointBufferDict.lock:
-      self.output = None
-      self.isKilled.notify()
-      self.pointBufferDict.hasNewContent.notify()
+    with self.pointBufferDict._lock:
+      self._output = None
+      self._isKilled.notify()
+      self.pointBufferDict._hasNewContent.notify()
