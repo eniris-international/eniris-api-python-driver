@@ -24,9 +24,6 @@ class TelemessageWrapper:
     with TelemessageWrapper._subIdCntLock:
       TelemessageWrapper._subIdCnt += 1
       return TelemessageWrapper._subIdCnt
-    
-  def filename(self):
-    return f"{self.creationDt.isoformat()}_subId_{self.subId}_scheduledDt_{self.scheduledDt.isoformat()}_retryNr_{self.retryNr}.pickle"
 
   def __init__(self, telemessage: Telemessage, creationDt:datetime=None, subId:int=None, scheduledDt:datetime=None, retryNr:int=0, snapshotPath: str=None):
     self._lock = RLock()
@@ -42,22 +39,46 @@ class TelemessageWrapper:
   @property
   def id(self):
     return (self.creationDt.isoformat(), self.subId)
+    
+  def _filename(self):
+    return f"{self.creationDt.strftime('%Y%m%dT%H%M%S%f')}_subId_{self.subId}_scheduledDt_{self._scheduledDt.strftime('%Y%m%dT%H%M%S%f')}_retryNr_{self._retryNr}.pickle"
   
   def hasSnapshot(self):
     with self._lock:
       return self._snapshotPath is not None
     
   @staticmethod
+  def loadSnapshotsFromDirectory(dir: str):
+    snapshots: list[TelemessageWrapper] = []
+    try:
+      filenames = os.listdir(dir)
+      for filename in filenames:
+        snapshotPath = os.path.join(dir, filename)
+        try:
+          telemessage = TelemessageWrapper.loadSnapshot(snapshotPath)
+          if telemessage is not None:
+            snapshots.append(telemessage)
+            logging.debug(f"Loaded Telemessage from '{snapshotPath}'")
+        except:
+          logging.exception(f"Failed to load Telemessage from '{snapshotPath}'")
+      logging.debug(f"Finished loading Telemessages from '{dir}'")
+    except:
+      logging.exception(f"Failed to load any Telemessages from '{dir}'")
+    return snapshots
+    
+  @staticmethod
   def loadSnapshot(path:str):
+    if not os.path.isfile(path):
+      return
     filename = os.path.basename(path)
     m = re.match('([^_]*)_subId_([^_]*)_scheduledDt_([^_]*)_retryNr_(\d+).pickle', filename)
     if not m:
-      raise ValueError(f"Unable to parse filename {filename}")
+      return
     with open(path, 'rb') as f:
       telemessage: Telemessage = pickle.load(f)
-    creationDt = datetime.strptime(m.group(1), "%Y-%m-%dT%H:%M:%S.%f%z")
+    creationDt = datetime.strptime(f"{m.group(1)}+00:00", "%Y%m%dT%H%M%S%f%z")
     subId = int(m.group(2))
-    scheduledDt = datetime.strptime(m.group(3), "%Y-%m-%dT%H:%M:%S.%f%z")
+    scheduledDt = datetime.strptime(f"{m.group(3)}+00:00", "%Y%m%dT%H%M%S%f%z")
     retryNr = int(m.group(4))
     return TelemessageWrapper(telemessage, creationDt, subId, scheduledDt, retryNr, path)
   
@@ -66,13 +87,13 @@ class TelemessageWrapper:
       if self._isFinished:
         return
       try:
-        snapshotPath = os.path.join(dirname, self.filename())
-        with open(snapshotPath, 'w') as f:
-          logging.debug(f"Writing Telemessage to '{snapshotPath}'")
+        snapshotPath = os.path.join(dirname, self._filename())
+        with open(snapshotPath, 'wb') as f:
           pickle.dump(self.telemessage, f)
+        logging.debug(f"Saved Telemessage to '{snapshotPath}'")
         self._snapshotPath = snapshotPath
       except:
-        logging.exception("Unable to store a snapshot due to an unexpected exception")
+        logging.exception(f"Failed to save Telemessage to '{snapshotPath}'")
 
   def removeSnapshot(self):
     with self._lock:
@@ -80,19 +101,21 @@ class TelemessageWrapper:
         return
       try:
         os.remove(self._snapshotPath)
+        logging.debug(f"Removed Telemessage from '{self._snapshotPath}'")
         self._snapshotPath = None
       except:
-        logging.exception("Unable to remove a snapshot due to an unexpected exception")
+        logging.exception(f"Failed to remove a snapshot from '{self._snapshotPath}'")
 
   def updateSnapshot(self):
     with self._lock:
       if self._snapshotPath:
+        newSnapshotPath = os.path.join(os.path.dirname(self._snapshotPath), self._filename())
         try:
-          newSnapshotPath = os.path.join(os.path.dirname(self._snapshotPath), self.filename())
           os.rename(self._snapshotPath, newSnapshotPath)
+          logging.debug(f"Moved Telemessage from '{self._snapshotPath}' to '{newSnapshotPath}'")
           self._snapshotPath = newSnapshotPath
         except:
-          logging.exception("Unable to rename a snapshot due to an unexpected exception")
+          logging.exception(f"Failed to move Telemessage from '{self._snapshotPath}' to '{newSnapshotPath}'")
 
   def reschedule(self, reason: str, queue):
     with self._lock:
@@ -121,7 +144,7 @@ class TelemessageWrapper:
   def wait(self, timeout:float|None=None):
     with self._lock:
       if not self._isFinished:
-        self._finishedCondition.wait()
+        self._finishedCondition.wait(timeout)
 
   # Note, we assume that no other threads are trying to modify the scheduledDt when comparing elements
   def __lt__(self, other):
@@ -170,7 +193,7 @@ class TelemessageWrapperQueue:
     with self._lock:
       currentFirstWaitingMessage = self._waitingMessages[0] if len(self._waitingMessages) > 0 else None
       heappush(self._waitingMessages, tmw)
-      if currentFirstWaitingMessage is None or tmw.scheduledDt < currentFirstWaitingMessage.scheduledDt:
+      if currentFirstWaitingMessage is None or tmw._scheduledDt < currentFirstWaitingMessage._scheduledDt:
         self._moreMessagesOrStoppingCondition.notify()
       if tmw.id in self._activeMessages:
         del self._activeMessages[tmw.id]
@@ -230,6 +253,8 @@ class PooledTelemessageWriterDaemon(Thread):
           logging.error(f"Dropping telemessage due to response with status code {resp.status_code} ({HTTPStatus(resp.status_code).phrase}): {resp.text}")
       except requests.Timeout:
          tmw.reschedule("timeout", self.queue)
+      except requests.ConnectionError:
+         tmw.reschedule("connection error", self.queue)
       except:
         logging.exception("Dropping telemessage due to unexpected exception")
         tmw.finish(self.queue)
@@ -261,7 +286,7 @@ class PooledTelemessageSnapshotDaemon(Thread):
         return
       content.sort(key=lambda x: x.id)
       currentlySnapshottedIds = {el.id for el in content if el.hasSnapshot()}
-      thresholdDt = datetime.now()-timedelta(seconds=self.minimumSnaphotAgeS)
+      thresholdDt = datetime.now(timezone.utc)-timedelta(seconds=self.minimumSnaphotAgeS)
       desiredSnapshottedIds = set()
       usedBytes = 0
       for el in reversed(content):
@@ -273,7 +298,7 @@ class PooledTelemessageSnapshotDaemon(Thread):
           el.removeSnapshot()
       for el in content:
         if el.id not in currentlySnapshottedIds and el.id in desiredSnapshottedIds:
-          el.saveSnapshot()
+          el.saveSnapshot(self.snapshotFolder)
       nextMessageToBeSnapshotted = None
       for el in content:
         if el.creationDt >= thresholdDt:
@@ -304,7 +329,8 @@ class PooledTelemessageWriter(TelemessageWriter):
         maximumRetryDelayS (int, optional): The maximum delay between successive retries in seconds. Defaults to 60
         retryStatusCodes (set[str], optional): A set of all response code for which a retry attempt must be made. Defaults to {429, 500, 503}
     """
-    self.queue = TelemessageWrapperQueue(maximumRetries=maximumRetries, initialRetryDelayS=initialRetryDelayS, maximumRetryDelayS=maximumRetryDelayS, retryStatusCodes=retryStatusCodes)
+    waitingMessages: list[TelemessageWrapper] = [] if snapshotFolder is None else TelemessageWrapper.loadSnapshotsFromDirectory(snapshotFolder)
+    self.queue = TelemessageWrapperQueue(waitingMessages, maximumRetries=maximumRetries, initialRetryDelayS=initialRetryDelayS, maximumRetryDelayS=maximumRetryDelayS, retryStatusCodes=retryStatusCodes)
     session = requests.Session() if session is None else session
     self.pool = [PooledTelemessageWriterDaemon(self.queue,
       url=url, params=params, authorizationHeaderFunction=authorizationHeaderFunction, timeoutS=timeoutS,

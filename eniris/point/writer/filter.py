@@ -18,6 +18,8 @@ class PointDuplicateFilter(PointWriterDecorator):
     Returns:
         list: Remaining measurements after filtering
     """
+    if len(points) == 0:
+      return
     out: 'list[Point]' = []
     with self.lock:
       # Calculate the new memory entries
@@ -55,4 +57,5 @@ class PointDuplicateFilter(PointWriterDecorator):
           out.append(Point(dp.namespace, dp.measurement, dp.time, dp.tags, selected_fields))
       # Update the memory
       self.memory.update(new_memory_entries)
-    self.output.writePoints(out)
+    if len(out) > 0:
+      self.output.writePoints(out)

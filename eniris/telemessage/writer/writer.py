@@ -12,7 +12,7 @@ class TelemessageWriter:
 class TelemessagePrinter(TelemessageWriter):
   """A class for debugging which will print any telemessages (telemetry messages) which are passed to it"""
   def writeTelemessage(self, tm: Telemessage):
-    pass#print("TelemessagePrinter", tm)
+    print("TelemessagePrinter", tm)
 
   def __del__(self):
     self.flush()

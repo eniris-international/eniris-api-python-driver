@@ -38,15 +38,17 @@ def retryRequest(requestsFunction:Callable, path:str, authorizationHeaderFunctio
     resp = requestsFunction(path, **req_function_kwargs)
   except requests.Timeout as e:
     resp = e
-  if isinstance(resp, requests.Timeout):
+  except requests.ConnectionError as e:
+    resp = e
+  if isinstance(resp, Exception):
     if retryNr+1 <= maximumRetries:
-      logging.warning("Retrying request after timeout.")
+      logging.warning(f"Retrying request after exception: {resp}")
       time.sleep(min(initialRetryDelayS*2**retryNr, maximumRetryDelayS))
       resp = retryRequest(requestsFunction, path, authorizationHeaderFunction,
                      maximumRetries, initialRetryDelayS, maximumRetryDelayS, retryStatusCodes, retryNr+1,
                      **req_function_kwargs)
     else:
-      raise requests.Timeout(resp)
+      raise resp
   elif resp.status_code in retryStatusCodes and retryNr+1 <= maximumRetries:
       logging.warning(f'Retrying request after response with status code {resp.status_code} ({HTTPStatus(resp.status_code).phrase}): {resp.text}')
       time.sleep(min(initialRetryDelayS*2**retryNr, maximumRetryDelayS))
