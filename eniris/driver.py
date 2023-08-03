@@ -95,6 +95,11 @@ class ApiDriver:
     self.session = requests.Session() if session is None else session
 
   def refreshtoken(self):
+    """Get a refresh token to authenticate with the API
+
+    Returns:
+        string: A refresh token of the format `Bearer token`
+    """
     with self.refreshTokenLock:
       dt = datetime.datetime.now()
       if self.refreshDtAndToken is None or (dt - self.refreshDtAndToken[0]).total_seconds() > 13*24*60*60: # 13 days
@@ -122,6 +127,11 @@ class ApiDriver:
       return f"Bearer {self.refreshDtAndToken[1]}"
     
   def accesstoken(self):
+    """Get an access token to authenticate with the API
+
+    Returns:
+        string: An access token of the format `Bearer token`
+    """
     with self.accessTokenLock:
       dt = datetime.datetime.now()
       if self.accessDtAndToken is None or (dt - self.accessDtAndToken[0]).total_seconds() > 2*60: # 2 minutes
@@ -158,7 +168,7 @@ class ApiDriver:
     """API GET call
 
     Args:
-        path (str): Path relative to the apiUrl.
+        path (str): Path relative to the apiUrl or a full url
         params (dict, optional): URL parameters. Defaults to None.
 
     Returns:
@@ -172,7 +182,7 @@ class ApiDriver:
     """API POST call()
 
     Args:
-        path (str): Path relative to the apiUrl.
+        path (str): Path relative to the apiUrl or a full url
         json (dict, optional): JSON body. Defaults to None.
         params (dict, optional): URL parameters. Defaults to None.
 
@@ -187,7 +197,7 @@ class ApiDriver:
     """API PUT call
 
     Args:
-        path (str): Path relative to the apiUrl.
+        path (str): Path relative to the apiUrl or a full url
         json (dict, optional): JSON body. Defaults to None.
         params (dict, optional): URL parameters. Defaults to None.
 
@@ -202,7 +212,7 @@ class ApiDriver:
     """API DELETE call
 
     Args:
-        path (str): Path relative to the baseUrl.
+        path (str): Path relative to the apiUrl or a full url
         params (dict, optional): URL parameters. Defaults to None.
 
     Returns:
