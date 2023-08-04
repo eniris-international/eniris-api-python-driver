@@ -215,12 +215,11 @@ class Point:
   This corresponds to an InfluxDB point, see also: https://docs.influxdata.com/influxdb/v2.6/reference/key-concepts/data-elements/
   
   Example:
-    >>> from eniris.point.namespace import V1Namespace
     >>> from eniris.point import point
     >>> 
     >>> from datetime import datetime
     >>>
-    >>> ns = V1Namespace('myDatabase', 'myRetentionPolicy')
+    >>> ns = {'database': 'myDatabase', 'retentionPolicy': 'myRetentionPolicy'}
     >>> dt = datetime(2023, 1, 1)
     >>> p0 = Point(ns, 'homeSensors', dt, {'id': 'livingroomSensor'}, {'temp_C': 18., 'humidity_perc': 20.})
     >>> p1 = Point(ns, 'homeSensors', dt, {'id': 'saunaSensor'}, {'temp_C': 40., 'humidity_perc': 90.})
@@ -263,7 +262,7 @@ class Point:
         namespace (eniris.point.Namespace|dict): A namespace object, or a JSON representation of a namespace object
     """
     if isinstance(namespace, dict):
-      namespace = Namespace.fromJson(**namespace)
+      namespace = Namespace.create(**namespace)
     Point.validateNamespace(namespace)
     self._namespace = namespace
 

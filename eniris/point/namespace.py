@@ -14,8 +14,8 @@ class Namespace:
   """
 
   @staticmethod
-  def fromJson(**kwargs):
-    """A method which allows to construct a concrete Namespace object from the its JSON serialized version.
+  def create(**kwargs):
+    """A method which allows to construct a concrete Namespace objects based on the passed keywords
     If no Namespace can be constructed, a ValueError is raised
 
     Args:
@@ -28,11 +28,11 @@ class Namespace:
 
     Example:
     >>> from eniris.point import Namespace
-    >>> Namespace.fromJson(**{'database': 'myDatabase', 'retentionPolicy': 'myRetentionPolicy'})
+    >>> Namespace.create(database='myDatabase', retentionPolicy='myRetentionPolicy')
     V1Namespace(database='myDatabase', retentionPolicy='myRetentionPolicy')
-    >>> Namespace.fromJson(**{'organization': 'myOrganization', 'bucket': 'myBucket'})
+    >>> Namespace.create(organization='myOrganization', bucket='myBucket')
     V2Namespace(organization='myOrganization', bucket='myBucket')
-    >>> Namespace.fromJson(**{'name': 'myNamespace'})
+    >>> Namespace.create(name='myNamespace')
     V3Namespace(name='myNamespace')
     """
     if "database" in kwargs and "retentionPolicy" in kwargs:
