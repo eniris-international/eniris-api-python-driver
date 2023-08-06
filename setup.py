@@ -13,7 +13,7 @@ setup(
     'eniris.telemessage',
     'eniris.telemessage.writer'
   ],
-  version = '0.7.8',
+  version = '0.7.9',
   description = 'Eniris API driver for Python',
   license='MIT',
   long_description=long_description,
@@ -21,7 +21,7 @@ setup(
   author = 'Enris BV',
   author_email = 'info@eniris.be',
   url = 'https://github.com/eniris-international/eniris-api-python-driver',
-  download_url = 'https://github.com/eniris-international/eniris-api-python-driver/archive/refs/tags/v0.7.8.tar.gz',
+  download_url = 'https://github.com/eniris-international/eniris-api-python-driver/archive/refs/tags/v0.7.9.tar.gz',
   keywords = ['eniris', 'api', 'rest'],   # Keywords that define your package best
   install_requires=[
     'requests'
