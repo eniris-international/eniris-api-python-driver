@@ -9,9 +9,19 @@ from eniris.point.writer import PointToTelemessageWriter
 from eniris.telemessage import Telemessage
 from eniris.telemessage.writer import TelemessageWriter
 
+# Constant to convert timestamps to nanoseconds
 NANOSECOND_CONVERSION = 10**9
 
-def createPointKey(point: Point):
+PointKey = tuple[frozenset[tuple[str, str]], str, frozenset[tuple[str, str]], str]
+def createPointKey(point: Point) -> PointKey:
+    """Create a unique key for the given Point.
+    
+    Args:
+        point (Point): Point for which to create the key.
+
+    Returns:
+        PointKey: A tuple containing the measurement, timestamp in nanoseconds, and a frozenset of the tag key-value pairs.
+    """
     return (
         point.measurement,
         int(point.time.timestamp() * NANOSECOND_CONVERSION),
@@ -20,9 +30,15 @@ def createPointKey(point: Point):
 
 @dataclass
 class PointBuffer:
+  """A buffer containing points sharing a single namespace, allowing points to be appended and converted to Telemessages.
+  The buffer keeps track of the total number of bytes of its contents when represented in line protocol (including newline characters).
+  Each PointBuffer also stores its creation datetime.
+
+  This class is not internally thread-safe.
+  """
   namespace: Namespace
   creationDt: datetime
-  pointMap: 'dict[tuple[str, int, frozenset[tuple[str, str]]], dict[str, Union[bool,float,int,str]]]'
+  pointMap: 'dict[PointKey, dict[str, Union[bool,float,int,str]]]'
   nrBytes: int
 
   def __init__(self, namespace: Union[Namespace,dict]):
@@ -32,8 +48,16 @@ class PointBuffer:
     self.nrBytes = 0
     
   def calculateNrExtraBytes(self, point: Point) -> int:
+    """Calculate the change in the number of bytes of the buffer line protocol representation when a given Point would be added.
+
+    Args:
+    - point (Point): The point to evaluate.
+
+    Returns:
+    - int: The change in the number of bytes
+    """
     nrExtraBytes = 0
-    pointKey = createPointKey(point.measurement)
+    pointKey = createPointKey(point)
     if pointKey not in self.pointMap:
       nrExtraBytes += len(Point.escapeMeasurement(point.measurement)) + \
               (1 + len(point.tags.toLineProtocol()) if len(point.tags) > 0 else 0) + \
@@ -51,16 +75,24 @@ class PointBuffer:
     return nrExtraBytes
 
   def append(self, point: Point):
+    """Append a point to the buffer. If a point with similar attributes exists, it will be updated.
+
+    Args:
+    - point (Point): The point to be appended.
+    """
     self.nrBytes += self.calculateNrExtraBytes(point)
     pointKey = createPointKey(point)
-    if pointKey not in self.pointMap:
-      self.pointMap[pointKey] = dict()
-    existingFields = self.pointMap[pointKey]
+    existingFields = self.pointMap.setdefault(pointKey, dict())
     newFields = point.fields
     for fieldKey in newFields:
       existingFields[fieldKey] = newFields[fieldKey]
 
   def toPoints(self):
+    """Convert the stored points in the buffer back to a list of Point objects.
+
+    Returns:
+    - list[Point]: A list of Point objects reconstructed from the buffer's contents.
+    """
     return [
       Point(
         self.namespace, measurement, datetime.fromtimestamp(time/NANOSECOND_CONVERSION, tz=timezone.utc),
@@ -69,12 +101,27 @@ class PointBuffer:
     ]
   
   def toTelemessage(self):
+    """Convert the stored points in the buffer into a Telemessage object.
+
+    Returns:
+    - Telemessage: A Telemessage representation of the points in the buffer.
+    """
     return Telemessage(self.namespace.toUrlParameters(), [p.toLineProtocol().encode("utf-8") for p in self.toPoints()])
   
 class PointBufferDict:
+  """A PointBufferDict manages a dictionary of PointBuffer instances, indexed by namespace. 
+  It ensures that each buffer stays within a defined size and handles flushing buffers to Telemessages.
+
+  Args:
+    maximumBatchSizeBytes (int, optional): Maximum size in bytes for internal PointBuffer (i.e. each set of points sharing the same namespace). Defaults to 10 MB
+    maximumBufferSizeBytes (int, optional): Maximum size in bytes all buffers in the entire dictionary combined. Defaults to 100 MB
+
+  This class is thread-safe.
+  """
+
   def __init__(self,
-        maximumBatchSizeBytes:int=1_000_000,
-        maximumBufferSizeBytes:int=10_000_000):
+        maximumBatchSizeBytes:int=10_000_000,
+        maximumBufferSizeBytes:int=100_000_000):
     self.maximumBatchSizeBytes = maximumBatchSizeBytes
     self.maximumBufferSizeBytes = maximumBufferSizeBytes
     self._lock = RLock()
@@ -83,6 +130,15 @@ class PointBufferDict:
     self._hasNewContent: Condition = Condition(self._lock)
 
   def writePoints(self, points: list[Point]):
+    """Writes a list of points to the buffer dictionary.
+    If any buffer becomes too large, it will be flushed and a Telemessage object will be created. 
+
+    Args:
+    - points (list[Point]): A list of points to write to the buffer.
+
+    Returns:
+    - list[Telemessage]: A list of Telemessage objects created from flushed buffers.
+    """
     messages: list[Telemessage] = []
     if len(points) == 0:
       return messages
@@ -97,7 +153,7 @@ class PointBufferDict:
           self._nrBytes -= buffer.nrBytes
           buffer = PointBuffer(point.namespace)
           self._namespace2buffer[namespace_key] = buffer
-        self._nrBytes -= buffer.nrBytes
+        self._nrBytes -= buffer.nrBytes # To keep self._nrBytes consistent, we remove the buffer's byte size, add an element to the buffer, and then add the new buffer bytesize
         buffer.append(point)
         self._nrBytes += buffer.nrBytes
       # Check whether an immediate flush is required
@@ -108,6 +164,12 @@ class PointBufferDict:
     return messages
   
   def flush(self):
+    """Flushes buffers from the dictionary, creating Telemessage objects for each set of points 
+    sharing the same namespace. This method will empty the buffer.
+
+    Returns:
+    - list[Telemessage]: A list of Telemessage objects created from the flushed buffers.
+    """
     messages: list[Telemessage] = []
     with self._lock:
       for buffer in self._namespace2buffer.values():
@@ -117,16 +179,51 @@ class PointBufferDict:
     return messages
 
 class BufferedPointToTelemessageWriter(PointToTelemessageWriter):
+  """A PointWriter which outputs Telemessages asynchroneously.
+  It combines messages sharing the same namespace in a buffer, outputting them in a single Telemessage, thus ensuring that Telemessages are written efficiently.
+  The maximum size of individual buffers, the combined size of all buffers and the maximum time a point can be hold in a buffer before being written can be configured.
+  This class is useful when one or more threads generate a large numer of small batches of Points.
+
+  Args:
+    lingerTimeS (float, optional): Maximum time a point can be hold in a buffer before being written. Defaults to 1 s
+    maximumBatchSizeBytes (int, optional): Maximum size in bytes for each PointBuffer batch. Defaults to 10 MB
+    maximumBufferSizeBytes (int, optional): Maximum size in bytes for the entire buffer. Defaults to 100 MB
+
+  Example:
+    >>> from eniris.point import Point
+    >>> from eniris.point.writer import BufferedPointToTelemessageWriter
+    >>> from eniris.telemessage.writer import TelemessagePrinter
+    >>> from datetime import datetime
+    >>> import time
+    >>>
+    >>> ns = {'database': 'myDatabase', 'retentionPolicy': 'myRetentionPolicy'}
+    >>> pLiving0 = Point(ns, 'homeSensors', datetime(2023, 1, 1), {'id': 'livingroomSensor'}, {'temp_C': 18., 'humidity_perc': 20.})
+    >>> pSauna0 = Point(ns, 'homeSensors', datetime(2023, 1, 1), {'id': 'saunaSensor'}, {'temp_C': 40., 'humidity_perc': 90.})
+    >>>
+    >>> writer = BufferedPointToTelemessageWriter(TelemessagePrinter(), lingerTimeS=0.1)
+    >>> writer.writePoints([pLiving0])
+    >>> time.sleep(0.01)
+    >>> writer.writePoints([pSauna0])
+    >>> time.sleep(0.1)
+    TelemessagePrinter Telemessage(parameters={'db': 'myDatabase', 'rp': 'myRetentionPolicy'}, lines=[b'homeSensors,id=livingroomSensor temp_C=18.0,humidity_perc=20.0 1672527600000000000', b'homeSensors,id=saunaSensor temp_C=40.0,humidity_perc=90.0 1672527600000000000'])
+  """
+
   def __init__(self, output: TelemessageWriter,
-        lingerTimeS:float=0.1,
-        maximumBatchSizeBytes:int=1_000_000,
-        maximumBufferSizeBytes:int=10_000_000):
+        lingerTimeS:float=1,
+        maximumBatchSizeBytes:int=10_000_000,
+        maximumBufferSizeBytes:int=100_000_000):
     super().__init__(output)
     self.pointBufferDict = PointBufferDict(maximumBatchSizeBytes, maximumBufferSizeBytes)
     self.daemon = BufferedPointToTelemessageWriterDaemon(output, self.pointBufferDict, lingerTimeS)
     self.daemon.start()
 
   def writePoints(self, points: list[Point]):
+    """Write each Point of a list to its the buffer corresponding with its namespace.
+    If a specific buffer becomes too large or if the combined size of all buffers becomed too large, it will be emptied and a Telemessage will be sent via the output.
+
+    Args:
+    - points (list[Point]): A list of points to write to the buffer.
+    """
     for message in self.pointBufferDict.writePoints(points):
       try:
         self.output.writeTelemessage(message)
@@ -134,6 +231,8 @@ class BufferedPointToTelemessageWriter(PointToTelemessageWriter):
         logging.exception("Failed to write Telemessage from BufferedPointToTelemessageWriter.writePoints")
   
   def _flush(self):
+    """Flushes all points from the namespace buffers, writing them to the output as Telemessages.
+    """
     for message in self.pointBufferDict.flush():
       try:
         self.output.writeTelemessage(message)
@@ -141,11 +240,21 @@ class BufferedPointToTelemessageWriter(PointToTelemessageWriter):
         logging.exception("Failed to write Telemessage from BufferedPointToTelemessageWriter.flush")
 
   def __del__(self):
+    """Destructor method for the BufferedPointToTelemessageWriter. Stops the daemon and flushes any remaining messages.
+    """
     self.daemon.stop()
     self.flush()
 
 class BufferedPointToTelemessageWriterDaemon(Thread):
-  def __init__(self, output: TelemessageWriter, pointBufferDict: PointBufferDict, lingerTimeS:float=0.1):
+  """Daemon thread for BufferedPointToTelemessageWriter, to ensure that points are outputted automatically when they are stored in a buffer for a specific duration.
+  
+  This daemon ensures that buffered points are written as Telemessages even if they don't fill a complete buffer
+  by checking whether the buffer holding the point is older that a configured duration.
+  
+  Args:
+    lingerTimeS (float, optional): Maximum time a point can be hold in a buffer before being written. Defaults to 1 s
+  """
+  def __init__(self, output: TelemessageWriter, pointBufferDict: PointBufferDict, lingerTimeS:float=1):
     super().__init__()
     self.lingerTimeS = lingerTimeS
     self.pointBufferDict = pointBufferDict
@@ -189,7 +298,7 @@ class BufferedPointToTelemessageWriterDaemon(Thread):
             self._isKilled.wait(sleepTimeS)
 
   def stop(self):
+    """A method to stop the daemon thread."""
     with self.pointBufferDict._lock:
       self._output = None
       self._isKilled.notify()
-      self.pointBufferDict._hasNewContent.notify()

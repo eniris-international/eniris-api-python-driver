@@ -93,31 +93,34 @@ class PointDuplicateFilter(PointWriterDecorator):
       self.deleteExpiredEntries()
       currentTs = int(time.time()*NANOSECOND_CONVERSION)
       for p in points:
-        pTs = int(p.time.timestamp()*NANOSECOND_CONVERSION) if p.time is not None else currentTs
-        pNamespaceParameters = p.namespace.toUrlParameters() 
-        pNamespaceKey = frozenset((key, pNamespaceParameters[key]) for key in pNamespaceParameters)
-        pTagsKey = frozenset((key, p.tags[key]) for key in p.tags)
-        updatedFields = dict()
-        for fieldKey in p.fields:
-          seriesKey = (pNamespaceKey, p.measurement, pTagsKey, fieldKey)
-          # Add an entry for the fields of p to the data structure
-          self.entryKey2updateTs[(seriesKey, pTs)] = currentTs
-          self.entryKey2updateTs.move_to_end((seriesKey, pTs))
-          cachedSeriesValues = self.memory.setdefault(seriesKey, OrderedDict())
-          # Figure out whether the field was actually updated
-          fieldValue = p.fields[fieldKey]
-          if pTs not in cachedSeriesValues or cachedSeriesValues[pTs] != fieldValue:
-            cachedSeriesValues[pTs] = fieldValue
-            updatedFields[fieldKey] = fieldValue
-          # Make sure the count constraints are not violated
-          while len(cachedSeriesValues) > self.maximumSeriesEntryCount:
-            p2Ts = next(iter(cachedSeriesValues))
-            self._delete(seriesKey, p2Ts)
-          while len(self.entryKey2updateTs) > self.maximumEntryCount:
-            (p2SeriesKey, p2Ts) = next(iter(self.entryKey2updateTs))
-            self._delete(p2SeriesKey, p2Ts)
-        # If necessary, add a point to the output list
-        if len(updatedFields) > 0:
-          out.append(Point(p.namespace, p.measurement, p.time, p.tags, updatedFields))
+        if p.time is None:
+          out.append(p)
+        else:
+          pTs = int(p.time.timestamp()*NANOSECOND_CONVERSION)
+          pNamespaceParameters = p.namespace.toUrlParameters() 
+          pNamespaceKey = frozenset((key, pNamespaceParameters[key]) for key in pNamespaceParameters)
+          pTagsKey = frozenset((key, p.tags[key]) for key in p.tags)
+          updatedFields = dict()
+          for fieldKey in p.fields:
+            seriesKey = (pNamespaceKey, p.measurement, pTagsKey, fieldKey)
+            # Add an entry for the fields of p to the data structure
+            self.entryKey2updateTs[(seriesKey, pTs)] = currentTs
+            self.entryKey2updateTs.move_to_end((seriesKey, pTs))
+            cachedSeriesValues = self.memory.setdefault(seriesKey, OrderedDict())
+            # Figure out whether the field was actually updated
+            fieldValue = p.fields[fieldKey]
+            if pTs not in cachedSeriesValues or cachedSeriesValues[pTs] != fieldValue:
+              cachedSeriesValues[pTs] = fieldValue
+              updatedFields[fieldKey] = fieldValue
+            # Make sure the count constraints are not violated
+            while len(cachedSeriesValues) > self.maximumSeriesEntryCount:
+              p2Ts = next(iter(cachedSeriesValues))
+              self._delete(seriesKey, p2Ts)
+            while len(self.entryKey2updateTs) > self.maximumEntryCount:
+              (p2SeriesKey, p2Ts) = next(iter(self.entryKey2updateTs))
+              self._delete(p2SeriesKey, p2Ts)
+          # If necessary, add a point to the output list
+          if len(updatedFields) > 0:
+            out.append(Point(p.namespace, p.measurement, p.time, p.tags, updatedFields))
     if len(out) > 0:
       self.output.writePoints(out)
