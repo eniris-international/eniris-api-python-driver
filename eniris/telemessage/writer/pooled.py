@@ -244,7 +244,7 @@ class PooledTelemessageWriterDaemon(Thread):
         return
       try:
         headers: dict[str, str] = {"Authorization": self.authorizationHeaderFunction()} if self.authorizationHeaderFunction is not None else {}
-        resp = self.session.post(self.url, headers=headers, params=self.params|tmw.telemessage.parameters, timeout=self.timeoutS)
+        resp = self.session.post(self.url, params=self.params|tmw.telemessage.parameters, data=b'/n'.join(tmw.telemessage.lines), headers=headers, timeout=self.timeoutS)
         if resp.status_code == 204:
           tmw.finish(self.queue)
         elif resp.status_code in self.retryStatusCodes:

@@ -13,7 +13,7 @@ setup(
     'eniris.telemessage',
     'eniris.telemessage.writer'
   ],
-  version = '0.7.5',
+  version = '0.7.6',
   description = 'Eniris API driver for Python',
   license='MIT',
   long_description=long_description,
