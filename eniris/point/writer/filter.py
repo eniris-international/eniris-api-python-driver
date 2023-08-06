@@ -9,7 +9,7 @@ NANOSECOND_CONVERSION = 10**9
 SeriesKey = tuple[frozenset[tuple[str, str]], str, frozenset[tuple[str, str]], str]
 
 class PointDuplicateFilter(PointWriterDecorator):
-  """The PointDuplicateFilter class is a pointWriter providing a thread-safe, in-memory storage for Points that have been processed before.
+  """The PointDuplicateFilter class is a PointWriter providing a thread-safe, in-memory storage for Points that have been processed before.
   It is designed to be a filter in the data pipeline, sitting between a source of Points and another "PointWriter" that it sends the filtered Points to.
   
   For every field of an incoming Point, it creates a hashable key to represent the series of the field. This key includes the Point's namespace, measurement, and tags.
@@ -20,11 +20,11 @@ class PointDuplicateFilter(PointWriterDecorator):
 
   Args:
       maximumEntryAgeS (int, optional): The maximum time a field value will be stored in the memory. The age of an entry is based on the time a field was last submitted to the filter, and is unrelated to time timestamp of the field itself. Defaults to two days: 2*24*3600
-      maximumEntryCount (int, optional): The total maximum number of entries stored in the memory of the filter. 
-      maximumSeriesEntryCount (int, optional): The maximum number of entries stored for a single series (i.e. namespace, measurement, tagset and field name combination)
+      maximumEntryCount (int, optional): The total maximum number of entries stored in the memory of the filter. Defaults to 1_000
+      maximumSeriesEntryCount (int, optional): The maximum number of entries stored for a single series (i.e. namespace, measurement, tagset and field name combination). Defaults to 10_000_000
   
   Example:
-    >>> from eniris.point import point
+    >>> from eniris.point import Point
     >>> from eniris.point.writer import PointDuplicateFilter, PointPrinter
     >>> from datetime import datetime
     >>>
@@ -42,7 +42,7 @@ class PointDuplicateFilter(PointWriterDecorator):
     PointPrinter [Point(namespace=V1Namespace(database='myDatabase', retentionPolicy='myRetentionPolicy'), measurement='homeSensors', time=datetime.datetime(2023, 1, 2, 0, 0), tags={'id': 'livingroomSensor'}, fields={'temp_C': 18.0, 'humidity_perc': 20.0})]
   """
 
-  def __init__(self, output: PointWriter, maximumEntryAgeS=2*24*3600, maximumSeriesEntryCount=500_000, maximumEntryCount=1_000_000_000):
+  def __init__(self, output: PointWriter, maximumEntryAgeS=2*24*3600, maximumSeriesEntryCount=1_000, maximumEntryCount=10_000_000):
     super().__init__(output)
     self.maximumEntryAgeS = maximumEntryAgeS
     self.maximumEntryCount = maximumEntryCount
@@ -78,7 +78,7 @@ class PointDuplicateFilter(PointWriterDecorator):
       del self.memory[pointSeriesKey]
 
   def writePoints(self, points: 'list[Point]'):
-    """Filter that filters out field values which have been pushed before by looking if the new values are identical to the stored values.
+    """Write points to the filter output, whilst filtering out field values which have been pushed before by looking if the new values are identical to the stored values.
 
     Args:
         points (list[eniris.point.Point]): List of Point's
@@ -103,9 +103,7 @@ class PointDuplicateFilter(PointWriterDecorator):
           # Add an entry for the fields of p to the data structure
           self.entryKey2updateTs[(seriesKey, pTs)] = currentTs
           self.entryKey2updateTs.move_to_end((seriesKey, pTs))
-          if seriesKey not in self.memory:
-            self.memory[seriesKey] = OrderedDict()
-          cachedSeriesValues = self.memory[seriesKey]
+          cachedSeriesValues = self.memory.setdefault(seriesKey, OrderedDict())
           # Figure out whether the field was actually updated
           fieldValue = p.fields[fieldKey]
           if pTs not in cachedSeriesValues or cachedSeriesValues[pTs] != fieldValue:

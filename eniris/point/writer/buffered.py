@@ -91,9 +91,7 @@ class PointBufferDict:
       for point in points:
         namespace_parameters = point.namespace.toUrlParameters()
         namespace_key = frozenset((key, namespace_parameters[key]) for key in namespace_parameters)
-        if namespace_key not in self._namespace2buffer:
-          self._namespace2buffer[namespace_key] = PointBuffer(point.namespace)
-        buffer = self._namespace2buffer[namespace_key]
+        buffer = self._namespace2buffer.setdefault(namespace_key, PointBuffer(point.namespace))
         if buffer.nrBytes > 0 and buffer.nrBytes + buffer.calculateNrExtraBytes(point) > self.maximumBatchSizeBytes:
           messages.append(buffer.toTelemessage())
           self._nrBytes -= buffer.nrBytes
