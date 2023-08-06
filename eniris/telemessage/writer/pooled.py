@@ -155,11 +155,10 @@ class TelemessageWrapper:
         return self._scheduledDt == other._scheduledDt
 
 class TelemessageWrapperQueue:
-  def __init__(self, waitingMessages: list[TelemessageWrapper]=[], maximumRetries:int=4, initialRetryDelayS:int=1, maximumRetryDelayS:int=60, retryStatusCodes:set[int]=set([HTTPStatus.TOO_MANY_REQUESTS,HTTPStatus.INTERNAL_SERVER_ERROR,HTTPStatus.SERVICE_UNAVAILABLE])):
+  def __init__(self, waitingMessages: list[TelemessageWrapper]=[], maximumRetries:int=4, initialRetryDelayS:int=1, maximumRetryDelayS:int=60):
     self.maximumRetries = maximumRetries
     self.initialRetryDelayS = initialRetryDelayS
     self.maximumRetryDelayS = maximumRetryDelayS
-    self.retryStatusCodes = retryStatusCodes
     self._lock = RLock()
     self._activeMessages: dict[str, TelemessageWrapper] = dict()
     self._waitingMessages = list(waitingMessages)
@@ -225,6 +224,7 @@ class TelemessageWrapperQueue:
 class PooledTelemessageWriterDaemon(Thread):
   def __init__(self, queue: TelemessageWrapperQueue,
                url:str="https://neodata-ingress.eniris.be/v1/telemetry", params:dict[str, str]={}, authorizationHeaderFunction:'Callable|None'=None, timeoutS:float=60,
+               retryStatusCodes:set[int]=set([HTTPStatus.TOO_MANY_REQUESTS,HTTPStatus.INTERNAL_SERVER_ERROR,HTTPStatus.SERVICE_UNAVAILABLE]),
                session:requests.Session=None):
     super().__init__()
     self.daemon = True
@@ -233,6 +233,7 @@ class PooledTelemessageWriterDaemon(Thread):
     self.params = params
     self.authorizationHeaderFunction = authorizationHeaderFunction
     self.timeoutS = timeoutS
+    self.retryStatusCodes = retryStatusCodes
     self.session = requests.Session() if session is None else session
 
   def run(self):
@@ -333,10 +334,11 @@ class PooledTelemessageWriter(TelemessageWriter):
         retryStatusCodes (set[str], optional): A set of all response code for which a retry attempt must be made. Defaults to {429, 500, 503}
     """
     waitingMessages: list[TelemessageWrapper] = [] if snapshotFolder is None else TelemessageWrapper.loadSnapshotsFromDirectory(snapshotFolder)
-    self.queue = TelemessageWrapperQueue(waitingMessages, maximumRetries=maximumRetries, initialRetryDelayS=initialRetryDelayS, maximumRetryDelayS=maximumRetryDelayS, retryStatusCodes=retryStatusCodes)
+    self.queue = TelemessageWrapperQueue(waitingMessages, maximumRetries=maximumRetries, initialRetryDelayS=initialRetryDelayS, maximumRetryDelayS=maximumRetryDelayS)
     session = requests.Session() if session is None else session
     self.pool = [PooledTelemessageWriterDaemon(self.queue,
       url=url, params=params, authorizationHeaderFunction=authorizationHeaderFunction, timeoutS=timeoutS,
+      retryStatusCodes=retryStatusCodes,
       session=session) for i in range(poolSize)]
     for d in self.pool:
       d.start()
