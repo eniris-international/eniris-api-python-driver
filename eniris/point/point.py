@@ -255,7 +255,7 @@ class Point:
     return self._namespace
   
   @namespace.setter
-  def namespace(self, namespace: Namespace|dict):
+  def namespace(self, namespace: 'Namespace|dict'):
     """Set the namespace of the point
 
     Args:

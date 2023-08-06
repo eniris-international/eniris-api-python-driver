@@ -287,7 +287,7 @@ class BufferedPointToTelemessageWriterDaemon(Thread):
             newNamespace2buffer[key] = buffer
         self.pointBufferDict._namespace2buffer = newNamespace2buffer
         # Check which buffer needs to be emptied next and sleep for an appropriate amount of time
-        minCreationDt: datetime|None = None
+        minCreationDt: 'datetime|None' = None
         for buffer in self.pointBufferDict._namespace2buffer.values():
           if minCreationDt is None or buffer.creationDt<minCreationDt:
             minCreationDt = buffer.creationDt

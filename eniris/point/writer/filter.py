@@ -47,8 +47,8 @@ class PointDuplicateFilter(PointWriterDecorator):
     self.maximumEntryAgeS = maximumEntryAgeS
     self.maximumEntryCount = maximumEntryCount
     self.maximumSeriesEntryCount = maximumSeriesEntryCount
-    self.memory: dict[SeriesKey, OrderedDict[int, bool|int|float|str]] = dict()
-    self.entryKey2updateTs: OrderedDict[tuple[SeriesKey, int], int] = OrderedDict()
+    self.memory: 'dict[SeriesKey, OrderedDict[int, bool|int|float|str]]' = dict()
+    self.entryKey2updateTs: 'OrderedDict[tuple[SeriesKey, int], int]' = OrderedDict()
     self.lock = RLock()
 
   def deleteExpiredEntries(self):

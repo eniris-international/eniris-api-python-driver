@@ -141,7 +141,7 @@ class TelemessageWrapper:
     with self._lock:
       return self._isFinished
 
-  def wait(self, timeout:float|None=None):
+  def wait(self, timeout:'float|None'=None):
     with self._lock:
       if not self._isFinished:
         self._finishedCondition.wait(timeout)
@@ -224,7 +224,7 @@ class TelemessageWrapperQueue:
 
 class PooledTelemessageWriterDaemon(Thread):
   def __init__(self, queue: TelemessageWrapperQueue,
-               url:str="https://neodata-ingress.eniris.be/v1/telemetry", params:dict[str, str]={}, authorizationHeaderFunction:Callable|None=None, timeoutS:float=60,
+               url:str="https://neodata-ingress.eniris.be/v1/telemetry", params:dict[str, str]={}, authorizationHeaderFunction:'Callable|None'=None, timeoutS:float=60,
                session:requests.Session=None):
     super().__init__()
     self.daemon = True
@@ -315,8 +315,8 @@ class PooledTelemessageWriter(TelemessageWriter):
   using this class to write messages will block a sending thread until the message is succesfully transmitted or an exception is raised.
   """
   def __init__(self, poolSize:int=1,
-               snapshotFolder:str|None=None, minimumSnaphotAgeS:int=5, maximumSnapshotStorageBytes=20_000_000,
-               url:str="https://neodata-ingress.eniris.be/v1/telemetry", params:dict[str, str]={}, authorizationHeaderFunction:Callable|None=None, timeoutS:float=60, session:requests.Session=None,
+               snapshotFolder:'str|None'=None, minimumSnaphotAgeS:int=5, maximumSnapshotStorageBytes=20_000_000,
+               url:str="https://neodata-ingress.eniris.be/v1/telemetry", params:dict[str, str]={}, authorizationHeaderFunction:'Callable|None'=None, timeoutS:float=60, session:requests.Session=None,
                maximumRetries:int=4, initialRetryDelayS:int=1, maximumRetryDelayS:int=60, retryStatusCodes:set[int]=set([HTTPStatus.TOO_MANY_REQUESTS,HTTPStatus.INTERNAL_SERVER_ERROR,HTTPStatus.SERVICE_UNAVAILABLE])
               ):
     """Constructor. Note that you will typically need to specify some optional parameters to succesfully authenticate

@@ -11,7 +11,7 @@ class AuthenticationFailure(Exception):
     "Raised when failing to authentiate to the Insights API"
     pass
 
-def retryRequest(requestsFunction:Callable, path:str, authorizationHeaderFunction: Callable|None = None,
+def retryRequest(requestsFunction:Callable, path:str, authorizationHeaderFunction: 'Callable|None' = None,
             maximumRetries:int = 4, initialRetryDelayS:int=1, maximumRetryDelayS:int=60, retryStatusCodes:set[int]=set([HTTPStatus.TOO_MANY_REQUESTS,HTTPStatus.INTERNAL_SERVER_ERROR,HTTPStatus.SERVICE_UNAVAILABLE]), retryNr:int = 0,
             **req_function_kwargs) -> requests.Response:
   """Execute the given requests_function with the provided req_function_kwargs keyword arguments. If the function fails, it will try again until the amount of retries has exceeded.
