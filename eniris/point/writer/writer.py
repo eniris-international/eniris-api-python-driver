@@ -2,7 +2,7 @@ from eniris.point import Point
 from eniris.telemessage.writer import TelemessageWriter
 
 class PointWriter:
-  """PointWriters all have a method writePoints which receives a list of Point's.
+  """PointWriters have a method writePoints which receives a list of Point's.
   Typically, they will perform some operations on these points and then either:
       - pass a modified list of Point's (i.e. PointWriterDecorator) to an output
       - pass a Telemessage (i.e. PointToTelemessageWriter) to an output
