@@ -1,15 +1,15 @@
 import requests
 
-from typing import Callable, ClassVar
+from typing import Callable, ClassVar, Optional
 from datetime import datetime, timezone, timedelta
 from dataclasses import dataclass
 from threading import Lock, RLock, Condition, Thread
 from heapq import heappop, heappush
 import os, pickle, re, logging, time
+from http import HTTPStatus
 
 from eniris.telemessage import Telemessage
 from eniris.telemessage.writer import TelemessageWriter
-from http import HTTPStatus
 
 @dataclass
 class TelemessageWrapper:
@@ -25,7 +25,7 @@ class TelemessageWrapper:
       TelemessageWrapper._subIdCnt += 1
       return TelemessageWrapper._subIdCnt
 
-  def __init__(self, telemessage: Telemessage, creationDt:datetime=None, subId:int=None, scheduledDt:datetime=None, retryNr:int=0, snapshotPath: str=None):
+  def __init__(self, telemessage: Telemessage, creationDt:Optional[datetime]=None, subId:Optional[int]=None, scheduledDt:Optional[datetime]=None, retryNr:int=0, snapshotPath: Optional[str]=None):
     self._lock = RLock()
     self.telemessage = telemessage
     self.creationDt = datetime.now(timezone.utc) if creationDt is None else creationDt
@@ -199,7 +199,7 @@ class TelemessageWrapperQueue:
       else:
         self._newMessageOrStoppingCondition.notifyAll()
   
-  def getContentOnNewMessage(self, latestKnownTmw: TelemessageWrapper=None):
+  def getContentOnNewMessage(self, latestKnownTmw: Optional[TelemessageWrapper]=None):
     with self._lock:
       while True:
         content = self.content()
@@ -225,7 +225,7 @@ class PooledTelemessageWriterDaemon(Thread):
   def __init__(self, queue: TelemessageWrapperQueue,
                url:str="https://neodata-ingress.eniris.be/v1/telemetry", params:dict[str, str]={}, authorizationHeaderFunction:'Callable|None'=None, timeoutS:float=60,
                retryStatusCodes:set[int]=set([HTTPStatus.TOO_MANY_REQUESTS,HTTPStatus.INTERNAL_SERVER_ERROR,HTTPStatus.SERVICE_UNAVAILABLE]),
-               session:requests.Session=None):
+               session:Optional[requests.Session]=None):
     super().__init__()
     self.daemon = True
     self.queue = queue
@@ -317,7 +317,7 @@ class PooledTelemessageWriter(TelemessageWriter):
   """
   def __init__(self, poolSize:int=1,
                snapshotFolder:'str|None'=None, minimumSnaphotAgeS:int=5, maximumSnapshotStorageBytes=20_000_000,
-               url:str="https://neodata-ingress.eniris.be/v1/telemetry", params:dict[str, str]={}, authorizationHeaderFunction:'Callable|None'=None, timeoutS:float=60, session:requests.Session=None,
+               url:str="https://neodata-ingress.eniris.be/v1/telemetry", params:dict[str, str]={}, authorizationHeaderFunction:'Callable|None'=None, timeoutS:float=60, session:Optional[requests.Session]=None,
                maximumRetries:int=4, initialRetryDelayS:int=1, maximumRetryDelayS:int=60, retryStatusCodes:set[int]=set([HTTPStatus.TOO_MANY_REQUESTS,HTTPStatus.INTERNAL_SERVER_ERROR,HTTPStatus.SERVICE_UNAVAILABLE])
               ):
     """Constructor. Note that you will typically need to specify some optional parameters to succesfully authenticate
@@ -345,8 +345,6 @@ class PooledTelemessageWriter(TelemessageWriter):
     if snapshotFolder is not None:
       self.snapshotDaemon = PooledTelemessageSnapshotDaemon(self.queue, snapshotFolder, minimumSnaphotAgeS, maximumSnapshotStorageBytes)
       self.snapshotDaemon.start()
-    else:
-      self.snapshotDaemon = None
   
   def writeTelemessage(self, tm: Telemessage):
     """

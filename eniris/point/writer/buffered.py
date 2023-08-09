@@ -12,7 +12,7 @@ from eniris.telemessage.writer import TelemessageWriter
 # Constant to convert timestamps to nanoseconds
 NANOSECOND_CONVERSION = 10**9
 
-PointKey = tuple[frozenset[tuple[str, str]], str, frozenset[tuple[str, str]], str]
+PointKey = tuple[str, int, frozenset[tuple[str, str]]]
 def createPointKey(point: Point) -> PointKey:
     """Create a unique key for the given Point.
     
@@ -41,7 +41,7 @@ class PointBuffer:
   pointMap: 'dict[PointKey, dict[str, Union[bool,float,int,str]]]'
   nrBytes: int
 
-  def __init__(self, namespace: Union[Namespace,dict]):
+  def __init__(self, namespace: Namespace):
     self.namespace = namespace
     self.creationDt = datetime.now(timezone.utc)
     self.pointMap = dict()

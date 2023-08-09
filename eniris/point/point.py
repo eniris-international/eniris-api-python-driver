@@ -232,6 +232,13 @@ class Point:
   tags: TagSet
   fields: FieldSet
 
+  def __init__(self, namespace: 'Namespace|dict', measurement: str, time: 'datetime|None', tags: 'TagSet|Mapping[str, str]', fields: 'FieldSet|Mapping[str, bool|int|float|str]'):
+    self.namespace = namespace # type: ignore
+    self.measurement = measurement
+    self.time = time # type: ignore
+    self.tags = tags # type: ignore
+    self.fields = fields # type: ignore
+
   @staticmethod
   def validateNamespace(namespace: Namespace):
     """Check wether the argument is a valid namespace object
@@ -245,7 +252,7 @@ class Point:
     if not isinstance(namespace, Namespace):
       raise ValueError("Namespace must be a Namespace object")
     
-  @property
+  @property # type: ignore
   def namespace(self) -> Namespace:
     """Get the namespace of the point
 
@@ -261,8 +268,7 @@ class Point:
     Args:
         namespace (eniris.point.Namespace|dict): A namespace object, or a JSON representation of a namespace object
     """
-    if isinstance(namespace, dict):
-      namespace = Namespace.create(**namespace)
+    namespace = Namespace.create(**namespace) if isinstance(namespace, dict) else namespace
     Point.validateNamespace(namespace)
     self._namespace = namespace
 
@@ -299,7 +305,7 @@ class Point:
     measurement = measurement.replace("\\", "\\\\") # Not strictly required, but best to do to avoid nonsense when the measurement name ends with a backslash. https://docs.influxdata.com/influxdb/v2.7/reference/syntax/line-protocol/#escaping-backslashes
     return measurement.replace(",", "\,").replace(" ", "\ ") # See: https://docs.influxdata.com/influxdb/v2.7/reference/syntax/line-protocol/#special-characters
     
-  @property
+  @property # type: ignore
   def measurement(self):
     """Get the measurement of the point
 
@@ -331,7 +337,7 @@ class Point:
     if time is not None and not isinstance(time, datetime):
       raise ValueError("Time must be either None or a datetime object")
     
-  @property
+  @property # type: ignore
   def time(self):
     """Get the time of the point
 
@@ -352,7 +358,7 @@ class Point:
     Point.validateTime(time)
     self._time = time
 
-  @property
+  @property # type: ignore
   def tags(self):
     """Get the tag set of the point
 
@@ -370,7 +376,7 @@ class Point:
     """
     self._tags = tags if isinstance(tags, TagSet) else TagSet(tags)
 
-  @property
+  @property # type: ignore
   def fields(self):
     """Get the field set of the point
 

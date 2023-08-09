@@ -1,5 +1,5 @@
 #!/usr/bin/python
-from typing import Callable
+from typing import Callable, Optional
 import datetime
 import requests
 import logging
@@ -64,7 +64,7 @@ class ApiDriver:
   def __init__(self, username:str, password:str,
                authUrl:str = 'https://authentication.eniris.be', apiUrl:str = 'https://api.eniris.be', timeoutS:int = 60,
                maximumRetries:int = 4, initialRetryDelayS:int=1, maximumRetryDelayS:int=60, retryStatusCodes:set[int]=set([HTTPStatus.TOO_MANY_REQUESTS,HTTPStatus.INTERNAL_SERVER_ERROR,HTTPStatus.SERVICE_UNAVAILABLE]),
-               session: requests.Session=None):
+               session:Optional[requests.Session]=None):
     """Constructor. You must specify at least a username and password
 
     Args:

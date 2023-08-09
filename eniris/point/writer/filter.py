@@ -100,7 +100,7 @@ class PointDuplicateFilter(PointWriterDecorator):
           pNamespaceParameters = p.namespace.toUrlParameters() 
           pNamespaceKey = frozenset((key, pNamespaceParameters[key]) for key in pNamespaceParameters)
           pTagsKey = frozenset((key, p.tags[key]) for key in p.tags)
-          updatedFields = dict()
+          updatedFields: 'dict[str, bool|int|float|str]' = dict()
           for fieldKey in p.fields:
             seriesKey = (pNamespaceKey, p.measurement, pTagsKey, fieldKey)
             # Add an entry for the fields of p to the data structure

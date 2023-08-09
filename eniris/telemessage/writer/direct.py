@@ -1,4 +1,4 @@
-from typing import Callable
+from typing import Callable, Optional
 from requests import Session
 from eniris.driver import retryRequest
 
@@ -20,7 +20,7 @@ class DirectTelemessageWriter(TelemessageWriter):
   """
   def __init__(self, url:str="https://neodata-ingress.eniris.be/v1/telemetry", params:dict[str, str]={}, authorizationHeaderFunction:'Callable|None'=None, timeoutS:float=60,
                maximumRetries:int=4, initialRetryDelayS:int=1, maximumRetryDelayS:int=60, retryStatusCodes:set[int]=set([HTTPStatus.TOO_MANY_REQUESTS,HTTPStatus.INTERNAL_SERVER_ERROR,HTTPStatus.SERVICE_UNAVAILABLE]),
-               session:Session=None):
+               session:Optional[Session]=None):
     self.url = url
     self.params = params
     self.authorizationHeaderFunction = authorizationHeaderFunction

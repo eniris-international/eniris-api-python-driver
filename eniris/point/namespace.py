@@ -79,7 +79,7 @@ class V1Namespace(Namespace):
     if len(database) == 0: # Not required by Influx, but required by Eniris
       raise ValueError("Database must have a length of at least one character")
     
-  @property
+  @property # type: ignore
   def database(self):
     """Get the database of the namespace
 
@@ -113,7 +113,7 @@ class V1Namespace(Namespace):
     if len(retentionPolicy) == 0: # Not required by Influx, but required by Eniris
       raise ValueError("Retention policy must have a length of at least one character")
     
-  @property
+  @property # type: ignore
   def retentionPolicy(self):
     """Get the retention policy of the namespace
 
@@ -157,7 +157,7 @@ class V2Namespace(Namespace):
     if len(organization) == 0: # Not required by Influx, but required by Eniris
       raise ValueError("Organization must have a length of at least one character")
     
-  @property
+  @property # type: ignore
   def organization(self):
     """Get the organization of the namespace
 
@@ -191,7 +191,7 @@ class V2Namespace(Namespace):
     if len(bucket) == 0: # Not required by Influx, but required by Eniris
       raise ValueError("Bucket must have a length of at least one character")
     
-  @property
+  @property # type: ignore
   def bucket(self):
     """Get the bucket of the namespace
 
@@ -234,7 +234,7 @@ class V3Namespace(Namespace):
     if len(name) == 0: # Not required by Influx, but required by Eniris
       raise ValueError("Name must have a length of at least one character")
     
-  @property
+  @property # type: ignore
   def name(self):
     """Get the name of the namespace
 
