@@ -3,10 +3,10 @@ from dataclasses import dataclass, asdict
 @dataclass
 class Telemessage(object):
   """A message with lines of telemetry which must be transmitted as a single block (telemetry messages), including url parameters which must be included in the transmission"""
-  parameters: dict[str, str]
-  lines: list[bytes]
+  parameters: 'dict[str, str]'
+  lines: 'list[bytes]'
 
-  def __init__(self, parameters: dict[str, str], lines: list[bytes]):
+  def __init__(self, parameters: 'dict[str, str]', lines: 'list[bytes]'):
     """Constructor
 
     Args:

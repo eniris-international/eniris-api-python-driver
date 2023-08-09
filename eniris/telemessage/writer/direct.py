@@ -18,8 +18,8 @@ class DirectTelemessageWriter(TelemessageWriter):
   """Write telemessages (telemetry messages) to a specific endpoint in a blocking fashion:
   using this class to write messages will block a sending thread until the message is succesfully transmitted or an exception is raised.
   """
-  def __init__(self, url:str="https://neodata-ingress.eniris.be/v1/telemetry", params:dict[str, str]={}, authorizationHeaderFunction:'Callable|None'=None, timeoutS:float=60,
-               maximumRetries:int=4, initialRetryDelayS:int=1, maximumRetryDelayS:int=60, retryStatusCodes:set[int]=set([HTTPStatus.TOO_MANY_REQUESTS,HTTPStatus.INTERNAL_SERVER_ERROR,HTTPStatus.SERVICE_UNAVAILABLE]),
+  def __init__(self, url:str="https://neodata-ingress.eniris.be/v1/telemetry", params:'dict[str, str]'={}, authorizationHeaderFunction:'Callable|None'=None, timeoutS:float=60,
+               maximumRetries:int=4, initialRetryDelayS:int=1, maximumRetryDelayS:int=60, retryStatusCodes:'set[int]'=set([HTTPStatus.TOO_MANY_REQUESTS,HTTPStatus.INTERNAL_SERVER_ERROR,HTTPStatus.SERVICE_UNAVAILABLE]),
                session:Optional[Session]=None):
     self.url = url
     self.params = params
@@ -40,7 +40,7 @@ class DirectTelemessageWriter(TelemessageWriter):
         maximumRetries (int, optional): How many times to try again in case of a failure. Defaults to 4
         initialRetryDelayS (int, optional): The initial delay between successive retries in seconds. Defaults to 1
         maximumRetryDelayS (int, optional): The maximum delay between successive retries in seconds. Defaults to 60
-        retryStatusCodes (set[str], optional): A set of all response code for which a retry attempt must be made. Defaults to {429, 500, 503}
+        retryStatusCodes (set[int], optional): A set of all response code for which a retry attempt must be made. Defaults to {429, 500, 503}
         session (requests.Session, optional): A session object to use for all calls. If None, a requests.Session without extra options is created. Defaults to None
     """
   

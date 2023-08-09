@@ -49,7 +49,7 @@ class TelemessageWrapper:
     
   @staticmethod
   def loadSnapshotsFromDirectory(dir: str):
-    snapshots: list[TelemessageWrapper] = []
+    snapshots: 'list[TelemessageWrapper]' = []
     try:
       filenames = os.listdir(dir)
       for filename in filenames:
@@ -155,12 +155,12 @@ class TelemessageWrapper:
         return self._scheduledDt == other._scheduledDt
 
 class TelemessageWrapperQueue:
-  def __init__(self, waitingMessages: list[TelemessageWrapper]=[], maximumRetries:int=4, initialRetryDelayS:int=1, maximumRetryDelayS:int=60):
+  def __init__(self, waitingMessages: 'list[TelemessageWrapper]'=[], maximumRetries:int=4, initialRetryDelayS:int=1, maximumRetryDelayS:int=60):
     self.maximumRetries = maximumRetries
     self.initialRetryDelayS = initialRetryDelayS
     self.maximumRetryDelayS = maximumRetryDelayS
     self._lock = RLock()
-    self._activeMessages: dict[str, TelemessageWrapper] = dict()
+    self._activeMessages: 'dict[str, TelemessageWrapper]' = dict()
     self._waitingMessages = list(waitingMessages)
     self._moreMessagesOrStoppingCondition: Condition = Condition(self._lock)
     self._newMessageOrStoppingCondition: Condition = Condition(self._lock)
@@ -223,8 +223,8 @@ class TelemessageWrapperQueue:
 
 class PooledTelemessageWriterDaemon(Thread):
   def __init__(self, queue: TelemessageWrapperQueue,
-               url:str="https://neodata-ingress.eniris.be/v1/telemetry", params:dict[str, str]={}, authorizationHeaderFunction:'Callable|None'=None, timeoutS:float=60,
-               retryStatusCodes:set[int]=set([HTTPStatus.TOO_MANY_REQUESTS,HTTPStatus.INTERNAL_SERVER_ERROR,HTTPStatus.SERVICE_UNAVAILABLE]),
+               url:str="https://neodata-ingress.eniris.be/v1/telemetry", params:'dict[str, str]'={}, authorizationHeaderFunction:'Callable|None'=None, timeoutS:float=60,
+               retryStatusCodes:'set[int]'=set([HTTPStatus.TOO_MANY_REQUESTS,HTTPStatus.INTERNAL_SERVER_ERROR,HTTPStatus.SERVICE_UNAVAILABLE]),
                session:Optional[requests.Session]=None):
     super().__init__()
     self.daemon = True
@@ -244,7 +244,7 @@ class PooledTelemessageWriterDaemon(Thread):
         logging.debug("Stopped PooledTelemessageWriterDaemon")
         return
       try:
-        headers: dict[str, str] = {"Authorization": self.authorizationHeaderFunction()} if self.authorizationHeaderFunction is not None else {}
+        headers: 'dict[str, str]' = {"Authorization": self.authorizationHeaderFunction()} if self.authorizationHeaderFunction is not None else {}
         resp = self.session.post(self.url, params=self.params|tmw.telemessage.parameters, data=b'\n'.join(tmw.telemessage.lines), headers=headers, timeout=self.timeoutS)
         if resp.status_code == 204:
           tmw.finish(self.queue)
@@ -290,7 +290,7 @@ class PooledTelemessageSnapshotDaemon(Thread):
       if len(content) > 0:
         lastMessage = content[-1]
 
-  def fixSnaphots(self, content: list[TelemessageWrapper], useAgeLimit=True):
+  def fixSnaphots(self, content: 'list[TelemessageWrapper]', useAgeLimit=True):
     content.sort(key=lambda x: x.id)
     currentlySnapshottedIds = {el.id for el in content if el.hasSnapshot()}
     thresholdDt = datetime.now(timezone.utc)-timedelta(seconds=self.minimumSnaphotAgeS)
@@ -317,8 +317,8 @@ class PooledTelemessageWriter(TelemessageWriter):
   """
   def __init__(self, poolSize:int=1,
                snapshotFolder:'str|None'=None, minimumSnaphotAgeS:int=5, maximumSnapshotStorageBytes=20_000_000,
-               url:str="https://neodata-ingress.eniris.be/v1/telemetry", params:dict[str, str]={}, authorizationHeaderFunction:'Callable|None'=None, timeoutS:float=60, session:Optional[requests.Session]=None,
-               maximumRetries:int=4, initialRetryDelayS:int=1, maximumRetryDelayS:int=60, retryStatusCodes:set[int]=set([HTTPStatus.TOO_MANY_REQUESTS,HTTPStatus.INTERNAL_SERVER_ERROR,HTTPStatus.SERVICE_UNAVAILABLE])
+               url:str="https://neodata-ingress.eniris.be/v1/telemetry", params:'dict[str, str]'={}, authorizationHeaderFunction:'Callable|None'=None, timeoutS:float=60, session:Optional[requests.Session]=None,
+               maximumRetries:int=4, initialRetryDelayS:int=1, maximumRetryDelayS:int=60, retryStatusCodes:'set[int]'=set([HTTPStatus.TOO_MANY_REQUESTS,HTTPStatus.INTERNAL_SERVER_ERROR,HTTPStatus.SERVICE_UNAVAILABLE])
               ):
     """Constructor. Note that you will typically need to specify some optional parameters to succesfully authenticate
 
@@ -331,9 +331,9 @@ class PooledTelemessageWriter(TelemessageWriter):
         maximumRetries (int, optional): How many times to try again in case of a failure. Defaults to 4
         initialRetryDelayS (int, optional): The initial delay between successive retries in seconds. Defaults to 1
         maximumRetryDelayS (int, optional): The maximum delay between successive retries in seconds. Defaults to 60
-        retryStatusCodes (set[str], optional): A set of all response code for which a retry attempt must be made. Defaults to {429, 500, 503}
+        retryStatusCodes (set[int], optional): A set of all response code for which a retry attempt must be made. Defaults to {429, 500, 503}
     """
-    waitingMessages: list[TelemessageWrapper] = [] if snapshotFolder is None else TelemessageWrapper.loadSnapshotsFromDirectory(snapshotFolder)
+    waitingMessages: 'list[TelemessageWrapper]' = [] if snapshotFolder is None else TelemessageWrapper.loadSnapshotsFromDirectory(snapshotFolder)
     self.queue = TelemessageWrapperQueue(waitingMessages, maximumRetries=maximumRetries, initialRetryDelayS=initialRetryDelayS, maximumRetryDelayS=maximumRetryDelayS)
     session = requests.Session() if session is None else session
     self.pool = [PooledTelemessageWriterDaemon(self.queue,

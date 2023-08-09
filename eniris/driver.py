@@ -12,7 +12,7 @@ class AuthenticationFailure(Exception):
     pass
 
 def retryRequest(requestsFunction:Callable, path:str, authorizationHeaderFunction: 'Callable|None' = None,
-            maximumRetries:int = 4, initialRetryDelayS:int=1, maximumRetryDelayS:int=60, retryStatusCodes:set[int]=set([HTTPStatus.TOO_MANY_REQUESTS,HTTPStatus.INTERNAL_SERVER_ERROR,HTTPStatus.SERVICE_UNAVAILABLE]), retryNr:int = 0,
+            maximumRetries:int = 4, initialRetryDelayS:int=1, maximumRetryDelayS:int=60, retryStatusCodes:'set[int]'=set([HTTPStatus.TOO_MANY_REQUESTS,HTTPStatus.INTERNAL_SERVER_ERROR,HTTPStatus.SERVICE_UNAVAILABLE]), retryNr:int = 0,
             **req_function_kwargs) -> requests.Response:
   """Execute the given requests_function with the provided req_function_kwargs keyword arguments. If the function fails, it will try again until the amount of retries has exceeded.
 
@@ -23,7 +23,7 @@ def retryRequest(requestsFunction:Callable, path:str, authorizationHeaderFunctio
       maximumRetries (int, optional): How many times to try again in case of a failure. Defaults to 4
       initialRetryDelayS (int, optional): The initial delay between successive retries in seconds. Defaults to 1
       maximumRetryDelayS (int, optional): The maximum delay between successive retries in seconds. Defaults to 60
-      retryStatusCodes (set[str], optional): A set of all response code for which a retry attempt must be made. Defaults to {429, 500, 503}
+      retryStatusCodes (set[int], optional): A set of all response code for which a retry attempt must be made. Defaults to {429, 500, 503}
       retryNr (int, optional): How often the call has been tried already. Defaults to 0.
       req_function_kwargs (dict): Keyword arguments for the requests_function.
 
@@ -31,7 +31,7 @@ def retryRequest(requestsFunction:Callable, path:str, authorizationHeaderFunctio
       requests.Response: HTTP response
   """
   try:
-    headers: dict[str, str] = req_function_kwargs.get("headers", dict())
+    headers: 'dict[str, str]' = req_function_kwargs.get("headers", dict())
     if authorizationHeaderFunction is not None:
       headers["Authorization"] = authorizationHeaderFunction()
     req_function_kwargs["headers"] = headers
@@ -63,7 +63,7 @@ class ApiDriver:
   """ An easy thread-save interface to interact with the API, with get, post, put and delete methods in the style of the requests library (https://docs.python-requests.org/en/master/) """
   def __init__(self, username:str, password:str,
                authUrl:str = 'https://authentication.eniris.be', apiUrl:str = 'https://api.eniris.be', timeoutS:int = 60,
-               maximumRetries:int = 4, initialRetryDelayS:int=1, maximumRetryDelayS:int=60, retryStatusCodes:set[int]=set([HTTPStatus.TOO_MANY_REQUESTS,HTTPStatus.INTERNAL_SERVER_ERROR,HTTPStatus.SERVICE_UNAVAILABLE]),
+               maximumRetries:int = 4, initialRetryDelayS:int=1, maximumRetryDelayS:int=60, retryStatusCodes:'set[int]'=set([HTTPStatus.TOO_MANY_REQUESTS,HTTPStatus.INTERNAL_SERVER_ERROR,HTTPStatus.SERVICE_UNAVAILABLE]),
                session:Optional[requests.Session]=None):
     """Constructor. You must specify at least a username and password
 
@@ -76,7 +76,7 @@ class ApiDriver:
         maximumRetries (int, optional): How many times to try again in case of a failure. Defaults to 4
         initialRetryDelayS (int, optional): The initial delay between successive retries in seconds. Defaults to 1
         maximumRetryDelayS (int, optional): The maximum delay between successive retries in seconds. Defaults to 60
-        retryStatusCodes (set[str], optional): A set of all response code for which a retry attempt must be made. Defaults to {429, 500, 503}
+        retryStatusCodes (set[int], optional): A set of all response code for which a retry attempt must be made. Defaults to {429, 500, 503}
         session (requests.Session, optional): A session object to use for all API calls. If None, a requests.Session without extra options is created. Defaults to None
     """
     self.username = username
