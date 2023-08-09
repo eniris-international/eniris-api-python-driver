@@ -36,11 +36,11 @@ class Namespace:
     V3Namespace(name='myNamespace')
     """
     if "database" in kwargs and "retentionPolicy" in kwargs:
-      return V1Namespace(**kwargs)
+      return V1Namespace(database=kwargs["database"], retentionPolicy=kwargs["retentionPolicy"])
     elif "organization" in kwargs and "bucket" in kwargs:
-      return V2Namespace(**kwargs)
+      return V2Namespace(organization=kwargs["organization"], bucket=kwargs["bucket"])
     elif "name" in kwargs:
-      return V3Namespace(**kwargs)
+      return V3Namespace(name=kwargs["name"])
     else:
       raise ValueError("Unable to detect the namespace type")
 
