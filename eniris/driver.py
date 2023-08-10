@@ -20,7 +20,7 @@ def retryRequest(
     maximumRetries: int = 4,
     initialRetryDelayS: int = 1,
     maximumRetryDelayS: int = 60,
-    retryStatusCodes: "Optional[set[int]|set[HTTPStatus]]" = None,
+    retryStatusCodes: "Optional[set[int|HTTPStatus]]" = None,
     retryNr: int = 0,
     **req_function_kwargs,
 ) -> requests.Response:
@@ -128,7 +128,7 @@ class ApiDriver:
         maximumRetries: int = 4,
         initialRetryDelayS: int = 1,
         maximumRetryDelayS: int = 60,
-        retryStatusCodes: "Optional[set[int]|set[HTTPStatus]]" = None,
+        retryStatusCodes: "Optional[set[int|HTTPStatus]]" = None,
         session: Optional[requests.Session] = None,
     ):
         """Constructor. You must specify at least a username and password
@@ -162,7 +162,7 @@ class ApiDriver:
         self.maximumRetries = maximumRetries
         self.initialRetryDelayS = initialRetryDelayS
         self.maximumRetryDelayS = maximumRetryDelayS
-        self.retryStatusCodes = (
+        self.retryStatusCodes: set[int|HTTPStatus] = (
             set(
                 [
                     HTTPStatus.TOO_MANY_REQUESTS,
