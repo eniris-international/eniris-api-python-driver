@@ -4,7 +4,7 @@ from setuptools import setup, find_packages
 with open("README.md", "r", encoding="utf8") as f:
     long_description = f.read()
 
-VERSION = "0.7.18"
+VERSION = "0.7.19"
 setup(
     name="eniris",
     packages=find_packages(),

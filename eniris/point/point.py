@@ -7,7 +7,7 @@ from typing import Mapping, Union
 
 from eniris.point.namespace import Namespace
 
-class TagSet(UserDict[str,str]):
+class TagSet(UserDict):
     """A set of measured values.
     Since a TagSet is created automatically when passing a dictionary as the 'tags'
     argument of the Point constructor, one usually does not have to instantiate
@@ -141,8 +141,7 @@ class TagSet(UserDict[str,str]):
         lst.sort()
         return ",".join(lst)
 
-FieldValueType = Union[bool, int, float, str]
-class FieldSet(UserDict[str, FieldValueType]):
+class FieldSet(UserDict):
     """A set of measured values.
     Since a FieldSet is created automatically when passing a dictionary as the 'fields'
     argument of the Point constructor, one usually does not have to instantiate this
