@@ -165,7 +165,7 @@ class PointBufferDict:
         self._nrBytes = 0
         self._hasNewContent: Condition = Condition(self._lock)
 
-    def writePoints(self, points: list[Point]):
+    def writePoints(self, points: "list[Point]"):
         """Writes a list of points to the buffer dictionary. If any buffer becomes too
         large, it will be flushed and a Telemessage object will be created.
 
@@ -175,7 +175,7 @@ class PointBufferDict:
         Returns:
         - list[Telemessage]: A list of Telemessage objects created from flushed buffers.
         """
-        messages: list[Telemessage] = []
+        messages: "list[Telemessage]" = []
         if len(points) == 0:
             return messages
         with self._lock:
@@ -209,7 +209,7 @@ class PointBufferDict:
                 self._hasNewContent.notify()
         return messages
 
-    def flush(self) -> list[Telemessage]:
+    def flush(self) -> "list[Telemessage]":
         """Flushes buffers from the dictionary, creating Telemessage objects
         for each set of points sharing the same namespace.
         This method will empty the buffer.
@@ -218,7 +218,7 @@ class PointBufferDict:
         - list[Telemessage]: A list of Telemessage objects created from the
           flushed buffers.
         """
-        messages: list[Telemessage] = []
+        messages: "list[Telemessage]" = []
         with self._lock:
             for buffer in self._namespace2buffer.values():
                 messages.append(buffer.toTelemessage())
@@ -279,7 +279,7 @@ class BufferedPointToTelemessageWriter(PointToTelemessageWriter):
         )
         self.daemon.start()
 
-    def writePoints(self, points: list[Point]):
+    def writePoints(self, points: "list[Point]"):
         """Write each Point of a list to its the buffer corresponding with its
         namespace. If a specific buffer becomes too large or if the combined size of
         all buffers becomed too large, it will be emptied and a Telemessage will be
