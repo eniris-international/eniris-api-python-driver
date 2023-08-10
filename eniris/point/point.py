@@ -207,7 +207,8 @@ class FieldSet(UserDict[str, "bool|int|float|str"]):
         elif isinstance(value, int):
             pass
         elif isinstance(value, float):
-            return math.isfinite(value)
+            if not math.isfinite(value):
+                raise ValueError("Floats fust be finite")
         elif isinstance(value, str):
             # The docs state: 'Lines separated by the newline character \n represent
             # a single point in InfluxDB. Line protocol is whitespace sensitive.' See:
@@ -258,20 +259,18 @@ class FieldSet(UserDict[str, "bool|int|float|str"]):
             str: The line-protocol representation of the field value
         """
         if isinstance(value, bool):
-            if value:
-                return "T"
-            else:
-                return "F"
-        elif isinstance(value, int):
+            return "T" if value else "F"
+        if isinstance(value, int):
             return f"{value}i"
-        elif isinstance(value, float):
+        if isinstance(value, float):
             return str(value)
-        elif isinstance(value, str):
+        if isinstance(value, str):
             # See:
             # https://docs.influxdata.com/influxdb/v2.7/reference/syntax/line-protocol/#special-characters
             return (
                 '"' + str(value).replace('"', '\\"').replace("\\", "\\\\") + '"'
             )
+        raise TypeError("Field value is not of a valid type")
 
     def toLineProtocol(self):
         """Convert a field set into its line-protocol representation

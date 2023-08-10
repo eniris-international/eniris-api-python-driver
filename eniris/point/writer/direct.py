@@ -1,5 +1,5 @@
 from eniris.point import Point
-from eniris.point.writer import PointToTelemessageWriter
+from eniris.point.writer.writer import PointToTelemessageWriter
 from eniris.telemessage import Telemessage
 from eniris.telemessage.writer import TelemessageWriter
 
@@ -43,7 +43,7 @@ class DirectPointToTelemessageWriter(PointToTelemessageWriter):
         Args:
             points (list[eniris.point.Point]): List of Point's
         """
-        params2data: "dict[frozenset[tuple[str, str]], list[Point]]" = dict()
+        params2data: "dict[frozenset[tuple[str, str]], list[Point]]" = {}
         for point in points:
             namespaceParams = point.namespace.toUrlParameters()
             namespaceParamsKey = frozenset(
@@ -53,7 +53,7 @@ class DirectPointToTelemessageWriter(PointToTelemessageWriter):
 
         for params, paramsData in params2data.items():
             paramsDict = {p[0]: p[1] for p in params}
-            curBytes: "list[bytes]" = list()
+            curBytes: "list[bytes]" = []
             curBytesLen = 0
             for point in paramsData:
                 pBytes: bytes = point.toLineProtocol().encode("utf-8")
@@ -62,7 +62,7 @@ class DirectPointToTelemessageWriter(PointToTelemessageWriter):
                     and curBytesLen + len(pBytes) + 1 > self.maximumBatchSizeBytes
                 ):  # + 1 to take into account the newlines when the lines are joined
                     self.output.writeTelemessage(Telemessage(paramsDict, curBytes))
-                    curBytes = list()
+                    curBytes = []
                     curBytesLen = 0
                 curBytes.append(pBytes)
                 curBytesLen += (

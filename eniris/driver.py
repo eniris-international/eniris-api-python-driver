@@ -8,6 +8,13 @@ from http import HTTPStatus
 
 import requests
 
+DEFAULT_RETRY_CODES: set[HTTPStatus|int] = set(
+    [
+        HTTPStatus.TOO_MANY_REQUESTS,
+        HTTPStatus.INTERNAL_SERVER_ERROR,
+        HTTPStatus.SERVICE_UNAVAILABLE,
+    ]
+)
 
 class AuthenticationFailure(Exception):
     "Raised when failing to authentiate to the Insights API"
@@ -52,18 +59,12 @@ def retryRequest(
         requests.Response: HTTP response
     """
     retryStatusCodes = (
-        set(
-            [
-                HTTPStatus.TOO_MANY_REQUESTS,
-                HTTPStatus.INTERNAL_SERVER_ERROR,
-                HTTPStatus.SERVICE_UNAVAILABLE,
-            ]
-        )
+        DEFAULT_RETRY_CODES
         if retryStatusCodes is None
         else retryStatusCodes
     )
     try:
-        headers: "dict[str, str]" = req_function_kwargs.get("headers", dict())
+        headers: "dict[str, str]" = req_function_kwargs.get("headers", {})
         if authorizationHeaderFunction is not None:
             headers["Authorization"] = authorizationHeaderFunction()
         req_function_kwargs["headers"] = headers
@@ -296,7 +297,7 @@ class ApiDriver:
                 maximumRetryDelayS=self.maximumRetryDelayS,
                 retryStatusCodes=self.retryStatusCodes,
             )
-            if resp.status_code == 204 or resp.status_code == 401:
+            if resp.status_code in (204, 401):
                 # The refresh token was either succesfully added to the deny list,
                 # or it was already invalid
                 self.refreshDtAndToken = None

@@ -2,7 +2,7 @@ from dataclasses import dataclass, asdict
 
 
 @dataclass
-class Telemessage(object):
+class Telemessage:
     """A message with lines of telemetry which must be transmitted as a single block
     (telemetry messages), including url parameters which must be included in the
     transmission"""

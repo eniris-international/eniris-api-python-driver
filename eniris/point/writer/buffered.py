@@ -1,11 +1,12 @@
-import logging, time
+import logging
+import time
 from datetime import datetime, timedelta, timezone
 from dataclasses import dataclass
 from threading import RLock, Thread, Condition
 from typing import Union
 
 from eniris.point import Point, Namespace, FieldSet
-from eniris.point.writer import PointToTelemessageWriter
+from eniris.point.writer.writer import PointToTelemessageWriter
 from eniris.telemessage import Telemessage
 from eniris.telemessage.writer import TelemessageWriter
 
@@ -50,7 +51,7 @@ class PointBuffer:
     def __init__(self, namespace: Namespace):
         self.namespace = namespace
         self.creationDt = datetime.now(timezone.utc)
-        self.pointMap = dict()
+        self.pointMap = {}
         self.nrBytes = 0
 
     def calculateNrExtraBytes(self, point: Point) -> int:
@@ -76,7 +77,7 @@ class PointBuffer:
                 )
                 + 1
             )
-            existingFields = dict()
+            existingFields = {}
         else:
             existingFields = self.pointMap[pointKey]
         newFields = point.fields
@@ -103,7 +104,7 @@ class PointBuffer:
         """
         self.nrBytes += self.calculateNrExtraBytes(point)
         pointKey = createPointKey(point)
-        existingFields = self.pointMap.setdefault(pointKey, dict())
+        existingFields = self.pointMap.setdefault(pointKey, {})
         newFields = point.fields
         for fieldKey in newFields:
             existingFields[fieldKey] = newFields[fieldKey]
@@ -160,7 +161,7 @@ class PointBufferDict:
         self.maximumBatchSizeBytes = maximumBatchSizeBytes
         self.maximumBufferSizeBytes = maximumBufferSizeBytes
         self._lock = RLock()
-        self._namespace2buffer: "dict[frozenset[tuple[str, str]], PointBuffer]" = dict()
+        self._namespace2buffer: "dict[frozenset[tuple[str, str]], PointBuffer]" = {}
         self._nrBytes = 0
         self._hasNewContent: Condition = Condition(self._lock)
 
@@ -221,7 +222,7 @@ class PointBufferDict:
         with self._lock:
             for buffer in self._namespace2buffer.values():
                 messages.append(buffer.toTelemessage())
-            self._namespace2buffer = dict()
+            self._namespace2buffer = {}
             self._nrBytes = 0
         return messages
 
@@ -357,7 +358,7 @@ class BufferedPointToTelemessageWriterDaemon(Thread):
                 curDt = datetime.now(timezone.utc)
                 # Empty the buffers with old content
                 thresholdDt = curDt - timedelta(seconds=self.lingerTimeS)
-                newNamespace2buffer = dict()
+                newNamespace2buffer = {}
                 for key in self.pointBufferDict._namespace2buffer:
                     buffer = self.pointBufferDict._namespace2buffer[key]
                     if buffer.creationDt < thresholdDt:

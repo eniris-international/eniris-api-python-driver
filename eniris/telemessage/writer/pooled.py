@@ -12,8 +12,9 @@ from http import HTTPStatus
 
 import requests
 
+from eniris.driver import DEFAULT_RETRY_CODES
 from eniris.telemessage import Telemessage
-from eniris.telemessage.writer import TelemessageWriter
+from eniris.telemessage.writer.writer import TelemessageWriter
 
 
 @dataclass
@@ -92,13 +93,13 @@ class TelemessageWrapper:
     @staticmethod
     def loadSnapshot(path: str):
         if not os.path.isfile(path):
-            return
+            return None
         filename = os.path.basename(path)
         match = re.match(
             r"([^_]*)_subId_([^_]*)_scheduledDt_([^_]*)_retryNr_(\d+).pickle", filename
         )
         if not match:
-            return
+            return None
         with open(path, "rb") as file:
             telemessage: Telemessage = pickle.load(file)
         creationDt = datetime.strptime(f"{match.group(1)}+00:00", "%Y%m%dT%H%M%S%f%z")
@@ -214,7 +215,7 @@ class TelemessageWrapperQueue:
         self.initialRetryDelayS = initialRetryDelayS
         self.maximumRetryDelayS = maximumRetryDelayS
         self._lock = RLock()
-        self._activeMessages: "dict[str, TelemessageWrapper]" = dict()
+        self._activeMessages: "dict[str, TelemessageWrapper]" = {}
         self._waitingMessages = [] if waitingMessages is None else list(waitingMessages)
         self._moreMessagesOrStoppingCondition: Condition = Condition(self._lock)
         self._newMessageOrStoppingCondition: Condition = Condition(self._lock)
@@ -230,15 +231,15 @@ class TelemessageWrapperQueue:
                 if len(self._waitingMessages) > 0:
                     tmw = self._waitingMessages[0]
                     # Since tmw._scheduledDt may only be changed while the wrapper is
-                    # an active message, we may safely read the protected member _scheduledDt
+                    # an active message, we may safely read the protected member
+                    # _scheduledDt
                     sleepTimeS = tmw._scheduledDt.timestamp() - time.time()  # pylint: disable=protected-access
                     if sleepTimeS < 0:
                         self._moreMessagesOrStoppingCondition.notify()
                         heappop(self._waitingMessages)
                         self._activeMessages[tmw.id] = tmw
                         return tmw
-                    else:
-                        self._moreMessagesOrStoppingCondition.wait(sleepTimeS)
+                    self._moreMessagesOrStoppingCondition.wait(sleepTimeS)
                 elif self._isStopping:
                     return None
                 else:
@@ -276,8 +277,7 @@ class TelemessageWrapperQueue:
                         return content
                 if self._isStopping:
                     return None
-                else:
-                    self._newMessageOrStoppingCondition.wait()
+                self._newMessageOrStoppingCondition.wait()
 
     def content(self):
         with self._lock:
@@ -309,13 +309,7 @@ class PooledTelemessageWriterDaemon(Thread):
         self.authorizationHeaderFunction = authorizationHeaderFunction
         self.timeoutS = timeoutS
         self.retryStatusCodes: set[int|HTTPStatus] = (
-            set(
-                [
-                    HTTPStatus.TOO_MANY_REQUESTS,
-                    HTTPStatus.INTERNAL_SERVER_ERROR,
-                    HTTPStatus.SERVICE_UNAVAILABLE,
-                ]
-            )
+            DEFAULT_RETRY_CODES
             if retryStatusCodes is None
             else retryStatusCodes
         )
@@ -484,15 +478,9 @@ class PooledTelemessageWriter(TelemessageWriter):
         maximumRetryDelayS: int = 60,
         retryStatusCodes: "Optional[set[int|HTTPStatus]]" = None,
     ):
-        params = dict() if params is None else params
+        params = {} if params is None else params
         retryStatusCodes = (
-            set(
-                [
-                    HTTPStatus.TOO_MANY_REQUESTS,
-                    HTTPStatus.INTERNAL_SERVER_ERROR,
-                    HTTPStatus.SERVICE_UNAVAILABLE,
-                ]
-            )
+            DEFAULT_RETRY_CODES
             if retryStatusCodes is None
             else retryStatusCodes
         )

@@ -3,7 +3,7 @@ import time
 from collections import OrderedDict
 
 from eniris.point import Point
-from eniris.point.writer import PointWriterDecorator, PointWriter
+from eniris.point.writer.writer import PointWriterDecorator, PointWriter
 
 NANOSECOND_CONVERSION = 10**9
 SeriesKey = tuple[frozenset[tuple[str, str]], str, frozenset[tuple[str, str]], str]
@@ -67,7 +67,7 @@ class PointDuplicateFilter(PointWriterDecorator):
         self.maximumEntryAgeS = maximumEntryAgeS
         self.maximumEntryCount = maximumEntryCount
         self.maximumSeriesEntryCount = maximumSeriesEntryCount
-        self.memory: "dict[SeriesKey, OrderedDict[int, bool|int|float|str]]" = dict()
+        self.memory: "dict[SeriesKey, OrderedDict[int, bool|int|float|str]]" = {}
         self.entryKey2updateTs: "OrderedDict[tuple[SeriesKey, int], int]" = (
             OrderedDict()
         )
@@ -134,7 +134,7 @@ class PointDuplicateFilter(PointWriterDecorator):
                         (key, pNamespaceParameters[key]) for key in pNamespaceParameters
                     )
                     pTagsKey = frozenset((key, point.tags[key]) for key in point.tags)
-                    updatedFields: "dict[str, bool|int|float|str]" = dict()
+                    updatedFields: "dict[str, bool|int|float|str]" = {}
                     for fieldKey in point.fields:
                         seriesKey = (
                             pNamespaceKey,

@@ -3,9 +3,9 @@ from http import HTTPStatus
 
 from requests import Session
 
-from eniris.driver import retryRequest
+from eniris.driver import retryRequest, DEFAULT_RETRY_CODES
 from eniris.telemessage import Telemessage
-from eniris.telemessage.writer import TelemessageWriter
+from eniris.telemessage.writer.writer import TelemessageWriter
 
 
 class DirectTelemessageWriterUnexpectedResponse(Exception):
@@ -66,13 +66,7 @@ class DirectTelemessageWriter(TelemessageWriter):
         self.initialRetryDelayS = initialRetryDelayS
         self.maximumRetryDelayS = maximumRetryDelayS
         self.retryStatusCodes: set[int|HTTPStatus] = (
-            set(
-                [
-                    HTTPStatus.TOO_MANY_REQUESTS,
-                    HTTPStatus.INTERNAL_SERVER_ERROR,
-                    HTTPStatus.SERVICE_UNAVAILABLE,
-                ]
-            )
+            DEFAULT_RETRY_CODES
             if retryStatusCodes is None
             else retryStatusCodes
         )

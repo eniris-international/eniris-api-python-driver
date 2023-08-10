@@ -47,14 +47,13 @@ class Namespace:
             return V1Namespace(
                 database=kwargs["database"], retentionPolicy=kwargs["retentionPolicy"]
             )
-        elif "organization" in kwargs and "bucket" in kwargs:
+        if "organization" in kwargs and "bucket" in kwargs:
             return V2Namespace(
                 organization=kwargs["organization"], bucket=kwargs["bucket"]
             )
-        elif "name" in kwargs:
+        if "name" in kwargs:
             return V3Namespace(name=kwargs["name"])
-        else:
-            raise ValueError("Unable to detect the namespace type")
+        raise ValueError("Unable to detect the namespace type")
 
     def toUrlParameters(self) -> "dict[str, str]":
         """A method which returns which url parameters should be attached to a
