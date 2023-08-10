@@ -290,7 +290,7 @@ class BufferedPointToTelemessageWriter(PointToTelemessageWriter):
         for message in self.pointBufferDict.writePoints(points):
             try:
                 self.output.writeTelemessage(message)
-            except Exception:
+            except Exception: # pylint: disable=broad-exception-caught
                 logging.exception(
                     "Failed to write Telemessage from "
                       +"BufferedPointToTelemessageWriter.writePoints"
@@ -302,7 +302,7 @@ class BufferedPointToTelemessageWriter(PointToTelemessageWriter):
         for message in self.pointBufferDict.flush():
             try:
                 self.output.writeTelemessage(message)
-            except Exception:
+            except Exception: # pylint: disable=broad-exception-caught
                 logging.exception(
                     "Failed to write Telemessage from "
                       + "BufferedPointToTelemessageWriter.flush"
@@ -327,6 +327,7 @@ class BufferedPointToTelemessageWriterDaemon(Thread):
       lingerTimeS (float, optional): Maximum time a point can be hold in a buffer\
         before being written. Defaults to 1 s
     """
+    # pylint: disable=protected-access
 
     def __init__(
         self,
@@ -362,7 +363,7 @@ class BufferedPointToTelemessageWriterDaemon(Thread):
                     if buffer.creationDt < thresholdDt:
                         try:
                             self._output.writeTelemessage(buffer.toTelemessage())
-                        except Exception:
+                        except Exception: # pylint: disable=broad-exception-caught
                             logging.exception(
                                 "Failed to write Telemessage from "
                                   "BufferedPointToTelemessageWriterDaemon.run"

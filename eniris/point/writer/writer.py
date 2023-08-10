@@ -42,6 +42,9 @@ class PointWriterDecorator(PointWriter):
         overriding method only has to make sure that internally stored points are
         transmitted."""
 
+    def writePoints(self, points: "list[Point]"):
+        raise NotImplementedError("This method should be overridden in child classes")
+
 
 class PointToTelemessageWriter(PointWriter):
     """A base class for PointWriters which send their output to a TelemessageWriter.
@@ -60,3 +63,6 @@ class PointToTelemessageWriter(PointWriter):
         """A placeholder function which may be overridden in child classes. The
         overriding method only has to make sure that internally stored points are
         transmitted."""
+
+    def writePoints(self, points: "list[Point]"):
+        raise NotImplementedError("This method should be overridden in child classes")
