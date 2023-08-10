@@ -308,7 +308,7 @@ class PooledTelemessageWriterDaemon(Thread):
         self.params = params
         self.authorizationHeaderFunction = authorizationHeaderFunction
         self.timeoutS = timeoutS
-        self.retryStatusCodes: set[int|HTTPStatus] = (
+        self.retryStatusCodes: "set[int|HTTPStatus]" = (
             DEFAULT_RETRY_CODES
             if retryStatusCodes is None
             else retryStatusCodes

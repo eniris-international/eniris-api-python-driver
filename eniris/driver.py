@@ -8,7 +8,7 @@ from http import HTTPStatus
 
 import requests
 
-DEFAULT_RETRY_CODES: set[HTTPStatus|int] = set(
+DEFAULT_RETRY_CODES: "set[HTTPStatus|int]" = set(
     [
         HTTPStatus.TOO_MANY_REQUESTS,
         HTTPStatus.INTERNAL_SERVER_ERROR,
@@ -164,13 +164,7 @@ class ApiDriver:
         self.initialRetryDelayS = initialRetryDelayS
         self.maximumRetryDelayS = maximumRetryDelayS
         self.retryStatusCodes: set[int|HTTPStatus] = (
-            set(
-                [
-                    HTTPStatus.TOO_MANY_REQUESTS,
-                    HTTPStatus.INTERNAL_SERVER_ERROR,
-                    HTTPStatus.SERVICE_UNAVAILABLE,
-                ]
-            )
+            DEFAULT_RETRY_CODES
             if retryStatusCodes is None
             else retryStatusCodes
         )

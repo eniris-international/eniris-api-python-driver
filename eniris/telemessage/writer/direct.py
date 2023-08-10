@@ -65,7 +65,7 @@ class DirectTelemessageWriter(TelemessageWriter):
         self.maximumRetries = maximumRetries
         self.initialRetryDelayS = initialRetryDelayS
         self.maximumRetryDelayS = maximumRetryDelayS
-        self.retryStatusCodes: set[int|HTTPStatus] = (
+        self.retryStatusCodes: "set[int|HTTPStatus]" = (
             DEFAULT_RETRY_CODES
             if retryStatusCodes is None
             else retryStatusCodes

@@ -3,7 +3,7 @@ import time
 from datetime import datetime, timedelta, timezone
 from dataclasses import dataclass
 from threading import RLock, Thread, Condition
-from typing import Union
+from typing import Union, Tuple, FrozenSet
 
 from eniris.point import Point, Namespace, FieldSet
 from eniris.point.writer.writer import PointToTelemessageWriter
@@ -13,7 +13,7 @@ from eniris.telemessage.writer import TelemessageWriter
 # Constant to convert timestamps to nanoseconds
 NANOSECOND_CONVERSION = 10**9
 
-PointKey = tuple[str, int, frozenset[tuple[str, str]]]
+PointKey = Tuple[str, int, FrozenSet[Tuple[str, str]]]
 
 
 def createPointKey(point: Point) -> PointKey:

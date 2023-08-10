@@ -1,12 +1,13 @@
 from threading import RLock
 import time
 from collections import OrderedDict
+from typing import FrozenSet, Tuple
 
 from eniris.point import Point
 from eniris.point.writer.writer import PointWriterDecorator, PointWriter
 
 NANOSECOND_CONVERSION = 10**9
-SeriesKey = tuple[frozenset[tuple[str, str]], str, frozenset[tuple[str, str]], str]
+SeriesKey = Tuple[FrozenSet[Tuple[str, str]], str, FrozenSet[Tuple[str, str]], str]
 
 
 class PointDuplicateFilter(PointWriterDecorator):
