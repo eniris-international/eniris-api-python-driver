@@ -510,6 +510,7 @@ class PooledTelemessageWriter(TelemessageWriter):
         ]
         for deamon in self.pool:
             deamon.start()
+        self.snapshotDaemon: "PooledTelemessageSnapshotDaemon|None" = None
         if snapshotFolder is not None:
             self.snapshotDaemon = PooledTelemessageSnapshotDaemon(
                 self.queue,
