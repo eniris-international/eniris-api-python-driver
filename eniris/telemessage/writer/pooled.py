@@ -305,7 +305,7 @@ class PooledTelemessageWriterDaemon(Thread):
         self.daemon = True
         self.queue = queue
         self.url = url
-        self.params = params
+        self.params = params if params else {}
         self.authorizationHeaderFunction = authorizationHeaderFunction
         self.timeoutS = timeoutS
         self.retryStatusCodes: "set[int|HTTPStatus]" = (
@@ -330,7 +330,7 @@ class PooledTelemessageWriterDaemon(Thread):
                 )
                 resp = self.session.post(
                     self.url,
-                    params=self.params | tmw.telemessage.parameters,
+                    params={**self.params, **tmw.telemessage.parameters},
                     data=b"\n".join(tmw.telemessage.lines),
                     headers=headers,
                     timeout=self.timeoutS,
