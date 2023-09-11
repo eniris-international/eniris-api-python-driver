@@ -82,7 +82,7 @@ class DirectTelemessageWriter(TelemessageWriter):
         res = retryRequest(
             self.session.post,
             self.url,
-            params=self.params | message.parameters,
+            params={**self.params, **message.parameters},
             data=b"\n".join(message.lines),
             authorizationHeaderFunction=self.authorizationHeaderFunction,
             timeout=self.timeoutS,
