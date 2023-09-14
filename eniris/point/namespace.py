@@ -1,6 +1,7 @@
 #!/usr/bin/python
 from dataclasses import dataclass, asdict
 
+
 @dataclass
 class Namespace:
     """A namespace in which measurements get stored. A namespace determines who can
@@ -19,6 +20,13 @@ class Namespace:
     Attaching a namespace abstracts which InfluxDB version is used for storage and thus
     allows to construct points in a consistent way over all versions.
     """
+
+    @staticmethod
+    def version() -> str:
+        """Return a version string corresponding to the namespace type"""
+        raise NotImplementedError(
+            "This function must be implemented by all Namespace subclasses"
+        )
 
     @staticmethod
     def create(**kwargs):
@@ -68,7 +76,7 @@ class Namespace:
     def toJson(self):
         """A JSON dumpable representation of the Namespace object, which can be
         converted back into the object using the Namespace.fromJson method"""
-        return asdict(self)
+        return asdict(self).update({"version": self.version()})
 
 
 @dataclass
@@ -78,6 +86,10 @@ class V1Namespace(Namespace):
 
     database: str
     retentionPolicy: str
+
+    @staticmethod
+    def version() -> str:
+        return "1"
 
     @staticmethod
     def validateDatabase(database: str) -> None:
@@ -157,10 +169,14 @@ class V1Namespace(Namespace):
 @dataclass
 class V2Namespace(Namespace):
     """The InfluxDB 2 implementation of the namespace concept, i.e.
-      the combination of an 'organization' and a 'bucket'"""
+    the combination of an 'organization' and a 'bucket'"""
 
     organization: str
     bucket: str
+
+    @staticmethod
+    def version() -> str:
+        return "2"
 
     @staticmethod
     def validateOrganization(organization: str) -> None:
@@ -244,6 +260,10 @@ class V3Namespace(Namespace):
     """The InfluxDB 3 implementation of the namespace concept, i.e. a simple string"""
 
     name: str
+
+    @staticmethod
+    def version() -> str:
+        return "IOx"
 
     @staticmethod
     def validateName(name: str):
