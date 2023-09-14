@@ -76,7 +76,7 @@ class Namespace:
     def toJson(self):
         """A JSON dumpable representation of the Namespace object, which can be
         converted back into the object using the Namespace.fromJson method"""
-        return asdict(self).update({"version": self.version()})
+        return {**asdict(self), "version": self.version()}
 
 
 @dataclass
