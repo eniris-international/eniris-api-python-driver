@@ -31,7 +31,8 @@ class Namespace:
     @staticmethod
     def create(**kwargs):
         """A method which allows to construct a concrete Namespace objects based on the
-        passed keywords. If no Namespace can be constructed, a ValueError is raised
+        passed keywords. If no Namespace can be constructed, a ValueError or TypeError is
+        raised
 
         Args:
           - keyword arguments 'database' and 'retentionPolicy' for a V1Namespace
@@ -102,7 +103,7 @@ class V1Namespace(Namespace):
             None: An exception is raised when the argument is not a valid database name
         """
         if not isinstance(database, str):
-            raise ValueError("Database must be a string")
+            raise TypeError("Database must be a string")
         if len(database) == 0:  # Not required by Influx, but required by Eniris
             raise ValueError("Database must have a length of at least one character")
 
@@ -137,7 +138,7 @@ class V1Namespace(Namespace):
               retention policy name
         """
         if not isinstance(retentionPolicy, str):
-            raise ValueError("Retention policy must be a string")
+            raise TypeError("Retention policy must be a string")
         if len(retentionPolicy) == 0:  # Not required by Influx, but required by Eniris
             raise ValueError(
                 "Retention policy must have a length of at least one character"
@@ -190,7 +191,7 @@ class V2Namespace(Namespace):
               valid organization name
         """
         if not isinstance(organization, str):
-            raise ValueError("Organization must be a string")
+            raise TypeError("Organization must be a string")
         # Not required by Influx, but required by Eniris
         if len(organization) == 0:
             raise ValueError(
@@ -227,7 +228,7 @@ class V2Namespace(Namespace):
             None: An exception is raised when the argument is not a valid bucket name
         """
         if not isinstance(bucket, str):
-            raise ValueError("Bucket must be a string")
+            raise TypeError("Bucket must be a string")
         # Not required by Influx, but required by Eniris
         if len(bucket) == 0:
             raise ValueError("Bucket must have a length of at least one character")
@@ -276,7 +277,7 @@ class V3Namespace(Namespace):
             None: An exception is raised when the argument is not a valid namespace name
         """
         if not isinstance(name, str):
-            raise ValueError("Name must be a string")
+            raise TypeError("Name must be a string")
         # Not required by Influx, but required by Eniris
         if len(name) == 0:
             raise ValueError("Name must have a length of at least one character")
