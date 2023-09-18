@@ -7,6 +7,7 @@ from typing import Mapping, Union
 
 from eniris.point.namespace import Namespace
 
+
 class TagSet(UserDict):
     """A set of measured values.
     Since a TagSet is created automatically when passing a dictionary as the 'tags'
@@ -46,15 +47,11 @@ class TagSet(UserDict):
         # The docs state: 'Lines separated by the newline character \n represent a
         # single point in InfluxDB. Line protocol is whitespace sensitive.' See:
         # https://docs.influxdata.com/influxdb/v2.7/reference/syntax/line-protocol/
-        if (
-            "\n" in key
-        ):
+        if "\n" in key:
             raise ValueError("Newline characters are not allowed in tag keys")
         # See:
         # https://docs.influxdata.com/influxdb/v2.7/reference/syntax/line-protocol/#naming-restrictions
-        if (
-            key[0] == "_"
-        ):
+        if key[0] == "_":
             raise ValueError("Tag key cannot start with an underscore character")
 
     @staticmethod
@@ -75,9 +72,7 @@ class TagSet(UserDict):
         # The docs state: 'Lines separated by the newline character \n represent a
         # single point in InfluxDB. Line protocol is whitespace sensitive.' See:
         # https://docs.influxdata.com/influxdb/v2.7/reference/syntax/line-protocol/
-        if (
-            "\n" in value
-        ):
+        if "\n" in value:
             raise ValueError("Newline characters are not allowed in tag values")
 
     @staticmethod
@@ -96,14 +91,10 @@ class TagSet(UserDict):
         # Not strictly required, but best to do to avoid nonsense when a tag key
         # ends with a backslash. See:
         # https://docs.influxdata.com/influxdb/v2.7/reference/syntax/line-protocol/#escaping-backslashes
-        key = key.replace(
-            "\\", "\\\\"
-        )
+        key = key.replace("\\", "\\\\")
         # See:
         # https://docs.influxdata.com/influxdb/v2.7/reference/syntax/line-protocol/#special-characters
-        return (
-            key.replace(",", "\\,").replace("=", "\\=").replace(" ", "\\ ")
-        )
+        return key.replace(",", "\\,").replace("=", "\\=").replace(" ", "\\ ")
 
     @staticmethod
     def escapeValue(value: str):
@@ -120,14 +111,10 @@ class TagSet(UserDict):
         # Not strictly required, but best to do to avoid nonsense when a tag value ends
         # with a backslash. See:
         # https://docs.influxdata.com/influxdb/v2.7/reference/syntax/line-protocol/#escaping-backslashes
-        value = value.replace(
-            "\\", "\\\\"
-        )
+        value = value.replace("\\", "\\\\")
         # See:
         # https://docs.influxdata.com/influxdb/v2.7/reference/syntax/line-protocol/#special-characters
-        return (
-            value.replace(",", "\\,").replace("=", "\\=").replace(" ", "\\ ")
-        )
+        return value.replace(",", "\\,").replace("=", "\\=").replace(" ", "\\ ")
 
     def toLineProtocol(self):
         """Convert a tag set into its line-protocol representation
@@ -140,6 +127,7 @@ class TagSet(UserDict):
         lst = [f"{TagSet.escapeKey(k)}={TagSet.escapeValue(self[k])}" for k in self]
         lst.sort()
         return ",".join(lst)
+
 
 class FieldSet(UserDict):
     """A set of measured values.
@@ -180,15 +168,11 @@ class FieldSet(UserDict):
         # The docs state: 'Lines separated by the newline character \n represent a
         # single point in InfluxDB. Line protocol is whitespace sensitive.' See:
         # https://docs.influxdata.com/influxdb/v2.7/reference/syntax/line-protocol/
-        if (
-            "\n" in key
-        ):
+        if "\n" in key:
             raise ValueError("Newline characters are not allowed in field keys")
         # See:
         # https://docs.influxdata.com/influxdb/v2.7/reference/syntax/line-protocol/#naming-restrictions
-        if (
-            key[0] == "_"
-        ):
+        if key[0] == "_":
             raise ValueError("Field key cannot start with an underscore character")
 
     @staticmethod
@@ -212,9 +196,7 @@ class FieldSet(UserDict):
             # The docs state: 'Lines separated by the newline character \n represent
             # a single point in InfluxDB. Line protocol is whitespace sensitive.' See:
             # https://docs.influxdata.com/influxdb/v2.7/reference/syntax/line-protocol/
-            if (
-                "\n" in value
-            ):
+            if "\n" in value:
                 raise ValueError("Newline characters are not allowed in field values")
         else:
             raise TypeError(
@@ -236,14 +218,10 @@ class FieldSet(UserDict):
         # Not strictly required, but best to do to avoid nonsense when a field key
         # ends with a backslash. See:
         # https://docs.influxdata.com/influxdb/v2.7/reference/syntax/line-protocol/#escaping-backslashes
-        key = key.replace(
-            "\\", "\\\\"
-        )
+        key = key.replace("\\", "\\\\")
         # See:
         # https://docs.influxdata.com/influxdb/v2.7/reference/syntax/line-protocol/#special-characters
-        return (
-            key.replace(",", "\\,").replace("=", "\\=").replace(" ", "\\ ")
-        )
+        return key.replace(",", "\\,").replace("=", "\\=").replace(" ", "\\ ")
 
     @staticmethod
     def escapeValue(value: "bool|int|float|str"):
@@ -266,9 +244,7 @@ class FieldSet(UserDict):
         if isinstance(value, str):
             # See:
             # https://docs.influxdata.com/influxdb/v2.7/reference/syntax/line-protocol/#special-characters
-            return (
-                '"' + str(value).replace('"', '\\"').replace("\\", "\\\\") + '"'
-            )
+            return '"' + str(value).replace('"', '\\"').replace("\\", "\\\\") + '"'
         raise TypeError("Field value is not of a valid type")
 
     def toLineProtocol(self):
@@ -387,15 +363,11 @@ class Point:
         # The docs state: 'Lines separated by the newline character \n represent a
         # single point in InfluxDB. Line protocol is whitespace sensitive.' See:
         # https://docs.influxdata.com/influxdb/v2.7/reference/syntax/line-protocol/
-        if (
-            "\n" in measurement
-        ):
+        if "\n" in measurement:
             raise ValueError("Newline characters are not allowed in measurement name")
         # See:
         # https://docs.influxdata.com/influxdb/v2.7/reference/syntax/line-protocol/#naming-restrictions
-        if (
-            measurement[0] == "_"
-        ):
+        if measurement[0] == "_":
             raise ValueError(
                 "Measurement name cannot start with an underscore character"
             )
@@ -415,9 +387,7 @@ class Point:
         # Not strictly required, but best to do to avoid nonsense when the measurement
         # name ends with a backslash. See:
         # https://docs.influxdata.com/influxdb/v2.7/reference/syntax/line-protocol/#escaping-backslashes
-        measurement = measurement.replace(
-            "\\", "\\\\"
-        )
+        measurement = measurement.replace("\\", "\\\\")
         # See:
         # https://docs.influxdata.com/influxdb/v2.7/reference/syntax/line-protocol/#special-characters
         return measurement.replace(",", "\\,").replace(" ", "\\ ")
