@@ -237,8 +237,8 @@ class BufferedPointToTelemessageWriter(PointToTelemessageWriter):
     batches of Points.
 
     Args:
-      lingerTimeS (float, optional): Maximum time a point can be hold in a buffer\
-        before being written. Defaults to 1 s
+      lingerTimeS (float or None, optional): Maximum time a point can be hold in a buffer\
+        before being written. When set to None, the buffer is never flushed. Defaults to 1 s
       maximumBatchSizeBytes (int, optional): Maximum size in bytes for each PointBuffer\
         batch. Defaults to 10 MB
       maximumBufferSizeBytes (int, optional): Maximum size in bytes for the entire\
@@ -266,7 +266,7 @@ class BufferedPointToTelemessageWriter(PointToTelemessageWriter):
     def __init__(
         self,
         output: TelemessageWriter,
-        lingerTimeS: float = 1,
+        lingerTimeS: "float|None" = 1,
         maximumBatchSizeBytes: int = 10_000_000,
         maximumBufferSizeBytes: int = 100_000_000,
     ):
@@ -274,10 +274,13 @@ class BufferedPointToTelemessageWriter(PointToTelemessageWriter):
         self.pointBufferDict = PointBufferDict(
             maximumBatchSizeBytes, maximumBufferSizeBytes
         )
-        self.daemon = BufferedPointToTelemessageWriterDaemon(
-            output, self.pointBufferDict, lingerTimeS
-        )
-        self.daemon.start()
+        if lingerTimeS is not None:
+            self.daemon = BufferedPointToTelemessageWriterDaemon(
+                output, self.pointBufferDict, lingerTimeS
+            )
+            self.daemon.start()
+        else:
+            self.daemon = None
 
     def writePoints(self, points: "list[Point]"):
         """Write each Point of a list to its the buffer corresponding with its
@@ -288,32 +291,41 @@ class BufferedPointToTelemessageWriter(PointToTelemessageWriter):
         Args:
         - points (list[Point]): A list of points to write to the buffer.
         """
-        for message in self.pointBufferDict.writePoints(points):
-            try:
-                self.output.writeTelemessage(message)
-            except Exception: # pylint: disable=broad-exception-caught
-                logging.exception(
-                    "Failed to write Telemessage from "
-                      +"BufferedPointToTelemessageWriter.writePoints"
-                )
+        self._writeMessages(self.pointBufferDict.writePoints(points))
 
     def _flush(self):
         """Flushes all points from the namespace buffers, writing them to the output
         as Telemessages."""
-        for message in self.pointBufferDict.flush():
-            try:
+        self._writeMessages(self.pointBufferDict.flush())
+
+    def _writeMessages(self, messages: "list[Telemessage]"):
+        """Write each Telemessage of a list to the output.
+        When a daemon is present, messages from the deamon cannot bubble up
+        and thus we catch exceptions which occur when writing from the main
+        thread for consistency. When no daemon is present, exceptions are allowed
+        to bubble up.
+
+        Args:
+        - messages (list[Telemessage]): A list of messages to write to the output.
+        """
+        for message in messages:
+            if self.daemon:
+                try:
+                    self.output.writeTelemessage(message)
+                except Exception: # pylint: disable=broad-exception-caught
+                    logging.exception(
+                        "Failed to write Telemessage from "
+                        + "BufferedPointToTelemessageWriter"
+                    )
+            else:
                 self.output.writeTelemessage(message)
-            except Exception: # pylint: disable=broad-exception-caught
-                logging.exception(
-                    "Failed to write Telemessage from "
-                      + "BufferedPointToTelemessageWriter.flush"
-                )
 
     def __del__(self):
         """Destructor method for the BufferedPointToTelemessageWriter. Stops the
         daemon and flushes any remaining messages."""
-        self.daemon.stop()
-        self.flush()
+        if self.daemon is not None:
+            self.daemon.stop()
+            self.flush()
 
 
 class BufferedPointToTelemessageWriterDaemon(Thread):

@@ -62,7 +62,7 @@ class PointDuplicateFilter(PointWriterDecorator):
         output: PointWriter,
         maximumEntryAgeS=2 * 24 * 3600,
         maximumSeriesEntryCount=1_000,
-        maximumEntryCount=10_000_000,
+        maximumEntryCount=100_000,
     ):
         super().__init__(output)
         self.maximumEntryAgeS = maximumEntryAgeS
