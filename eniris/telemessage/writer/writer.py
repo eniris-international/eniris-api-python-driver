@@ -20,4 +20,4 @@ class TelemessagePrinter(TelemessageWriter):
     development and demonstration purposes"""
 
     def writeTelemessage(self, message: Telemessage):
-        print(f"TelemessagePrinter {message}")
+        print(f"TelemessagePrinter (data length {len(message.data)}) {message}")

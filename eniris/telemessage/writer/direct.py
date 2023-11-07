@@ -66,9 +66,7 @@ class DirectTelemessageWriter(TelemessageWriter):
         self.initialRetryDelayS = initialRetryDelayS
         self.maximumRetryDelayS = maximumRetryDelayS
         self.retryStatusCodes: "set[int|HTTPStatus]" = (
-            DEFAULT_RETRY_CODES
-            if retryStatusCodes is None
-            else retryStatusCodes
+            DEFAULT_RETRY_CODES if retryStatusCodes is None else retryStatusCodes
         )
         self.session = Session() if session is None else session
 
@@ -83,13 +81,14 @@ class DirectTelemessageWriter(TelemessageWriter):
             self.session.post,
             self.url,
             params={**self.params, **message.parameters},
-            data=b"\n".join(message.lines),
+            data=message.data,
             authorizationHeaderFunction=self.authorizationHeaderFunction,
             timeout=self.timeoutS,
             maximumRetries=self.maximumRetries,
             initialRetryDelayS=self.initialRetryDelayS,
             maximumRetryDelayS=self.maximumRetryDelayS,
             retryStatusCodes=self.retryStatusCodes,
+            headers=message.headers,
         )
         if res.status_code != 204:
             raise DirectTelemessageWriterUnexpectedResponse(res.status_code, res.text)

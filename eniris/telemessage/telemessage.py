@@ -1,4 +1,5 @@
 from dataclasses import dataclass, asdict
+from typing import Optional
 
 
 @dataclass
@@ -8,19 +9,32 @@ class Telemessage:
     transmission"""
 
     parameters: "dict[str, str]"
-    lines: "list[bytes]"
+    data: "bytes"
+    headers: "dict[str,str]|None"
 
-    def __init__(self, parameters: "dict[str, str]", lines: "list[bytes]"):
+    def __init__(
+        self,
+        parameters: "dict[str, str]",
+        data: "list[bytes]|bytes",
+        headers: "Optional[dict[str, str]]" = None,
+    ):
         """Constructor
 
         Args:
           params (dict[str, str]): Query parameters which should be added to the post\
             request in which the telemessage lines are transmitted
-          lines (list[bytes]): A list of bytes, where each byte is a lineprotocol\
+          data (list[bytes]|bytes): A list of bytes or bytes, where each element is a lineprotocol\
             encoded point
         """
         self.parameters = parameters
-        self.lines = lines
+        if isinstance(data, list):
+            self.data = b"\n".join(data)
+        else:
+            self.data = data
+        if headers is None:
+            self.headers = {}
+        else:
+            self.headers = headers
 
     def nrBytes(self):
         """Get the total number of bytes of the lines in the telemessage
@@ -28,7 +42,7 @@ class Telemessage:
         Returns:
             int: The total number of bytes of the lines in the telemessage
         """
-        return sum(len(line) for line in self.lines)
+        return len(self.data)
 
     def toJson(self):
         """Return an (almost) JSON dumpable representation of the telemessage

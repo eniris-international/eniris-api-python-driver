@@ -144,16 +144,24 @@ class TelemessageWrapper:
                 )
                 try:
                     os.rename(self._snapshotPath, newSnapshotPath)
-                    logging.info(' '.join([
-                        f"Moved Telemessage from '{self._snapshotPath}'",
-                        f"to '{newSnapshotPath}'"
-                    ]))
+                    logging.info(
+                        " ".join(
+                            [
+                                f"Moved Telemessage from '{self._snapshotPath}'",
+                                f"to '{newSnapshotPath}'",
+                            ]
+                        )
+                    )
                     self._snapshotPath = newSnapshotPath
                 except Exception:  # pylint: disable=broad-exception-caught
-                    logging.exception(' '.join([
-                        f"Failed to move Telemessage from '{self._snapshotPath}'",
-                        f" to '{newSnapshotPath}'"
-                    ]))
+                    logging.exception(
+                        " ".join(
+                            [
+                                f"Failed to move Telemessage from '{self._snapshotPath}'",
+                                f" to '{newSnapshotPath}'",
+                            ]
+                        )
+                    )
 
     def reschedule(self, reason: str, queue):
         with self._lock:
@@ -168,10 +176,14 @@ class TelemessageWrapper:
                 self._retryNr += 1
                 self.updateSnapshot()
             else:
-                logging.error(' '.join([
-                    "Maximum number of retries exceeded,",
-                    f"dropping telemessage due to {reason}"
-                ]))
+                logging.error(
+                    " ".join(
+                        [
+                            "Maximum number of retries exceeded,",
+                            f"dropping telemessage due to {reason}",
+                        ]
+                    )
+                )
                 self.finish(queue)
                 return
         queue.addWaiting(self)
@@ -233,7 +245,9 @@ class TelemessageWrapperQueue:
                     # Since tmw._scheduledDt may only be changed while the wrapper is
                     # an active message, we may safely read the protected member
                     # _scheduledDt
-                    sleepTimeS = tmw._scheduledDt.timestamp() - time.time()  # pylint: disable=protected-access
+                    sleepTimeS = (
+                        tmw._scheduledDt.timestamp() - time.time()
+                    )  # pylint: disable=protected-access
                     if sleepTimeS < 0:
                         self._moreMessagesOrStoppingCondition.notify()
                         heappop(self._waitingMessages)
@@ -260,9 +274,11 @@ class TelemessageWrapperQueue:
             # tmw and currentFirstWaitingMessage
             if (
                 currentFirstWaitingMessage is None
-                or tmw._scheduledDt < currentFirstWaitingMessage._scheduledDt  # pylint: disable=protected-access
+                or tmw._scheduledDt
+                < currentFirstWaitingMessage._scheduledDt  # pylint: disable=protected-access
             ):
                 self._moreMessagesOrStoppingCondition.notify()
+
     def getContentOnNewMessage(
         self, latestKnownTmw: Optional[TelemessageWrapper] = None
     ):
@@ -309,9 +325,7 @@ class PooledTelemessageWriterDaemon(Thread):
         self.authorizationHeaderFunction = authorizationHeaderFunction
         self.timeoutS = timeoutS
         self.retryStatusCodes: "set[int|HTTPStatus]" = (
-            DEFAULT_RETRY_CODES
-            if retryStatusCodes is None
-            else retryStatusCodes
+            DEFAULT_RETRY_CODES if retryStatusCodes is None else retryStatusCodes
         )
         self.session = requests.Session() if session is None else session
 
@@ -331,8 +345,8 @@ class PooledTelemessageWriterDaemon(Thread):
                 resp = self.session.post(
                     self.url,
                     params={**self.params, **tmw.telemessage.parameters},
-                    data=b"\n".join(tmw.telemessage.lines),
-                    headers=headers,
+                    data=tmw.telemessage.data,
+                    headers={**headers, **tmw.telemessage.headers},
                     timeout=self.timeoutS,
                 )
                 if resp.status_code == 204:
@@ -345,11 +359,13 @@ class PooledTelemessageWriterDaemon(Thread):
                     )
                 else:
                     logging.error(
-                        " ".join([
-                            "Dropping telemessage due to",
-                            f"response with status code {resp.status_code}",
-                            f"({HTTPStatus(resp.status_code).phrase}): {resp.text}"
-                        ])
+                        " ".join(
+                            [
+                                "Dropping telemessage due to",
+                                f"response with status code {resp.status_code}",
+                                f"({HTTPStatus(resp.status_code).phrase}): {resp.text}",
+                            ]
+                        )
                     )
             except requests.Timeout:
                 tmw.reschedule("timeout", self.queue)
@@ -480,9 +496,7 @@ class PooledTelemessageWriter(TelemessageWriter):
     ):
         params = {} if params is None else params
         retryStatusCodes = (
-            DEFAULT_RETRY_CODES
-            if retryStatusCodes is None
-            else retryStatusCodes
+            DEFAULT_RETRY_CODES if retryStatusCodes is None else retryStatusCodes
         )
         waitingMessages: "list[TelemessageWrapper]" = (
             []
