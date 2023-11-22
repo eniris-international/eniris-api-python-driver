@@ -244,7 +244,7 @@ class FieldSet(UserDict):
         if isinstance(value, str):
             # See:
             # https://docs.influxdata.com/influxdb/v2.7/reference/syntax/line-protocol/#special-characters
-            return '"' + str(value).replace('"', '\\"').replace("\\", "\\\\") + '"'
+            return '"' + str(value).replace("\\", "\\\\").replace('"', '\\"') + '"'
         raise TypeError("Field value is not of a valid type")
 
     def toLineProtocol(self):
