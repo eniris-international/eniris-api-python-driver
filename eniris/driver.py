@@ -85,7 +85,8 @@ def retryRequest(
         resp = ex
     if isinstance(resp, Exception):
         if retryNr + 1 <= maximumRetries:
-            logging.warning(f"Retrying request after exception: {resp}. API call: requests.{requestsFunction.__name__}({path}, {printKwargs(req_function_kwargs)})")
+            resp_text = str(resp).replace('\n', '\\n ')
+            logging.warning(f"Retrying request after exception: {resp_text}. API call: requests.{requestsFunction.__name__}({path}, {printKwargs(req_function_kwargs)})")
             time.sleep(min(initialRetryDelayS * 2**retryNr, maximumRetryDelayS))
             resp = retryRequest(
                 requestsFunction,
@@ -101,9 +102,10 @@ def retryRequest(
         else:
             raise resp
     elif resp.status_code in retryStatusCodes and retryNr + 1 <= maximumRetries:
+        resp_text = resp.text.replace('\n', '\\n ')
         logging.warning(
             f"Retrying request after response with status code {resp.status_code}"
-            + f" ({HTTPStatus(resp.status_code).phrase}): {resp.text}. "
+            + f" ({HTTPStatus(resp.status_code).phrase}): {resp_text}. "
             + f"API call: requests.{requestsFunction.__name__}({path}, {printKwargs(req_function_kwargs)})"
         )
         time.sleep(min(initialRetryDelayS * 2**retryNr, maximumRetryDelayS))
