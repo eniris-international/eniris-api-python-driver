@@ -28,6 +28,7 @@ def printKwargs(kwargs:dict, maxChars:int=256):
         res = res[-2:]
     if len(res) > maxChars:
         res = res[:maxChars] + '...'
+    return res
 
 
 def retryRequest(
@@ -85,7 +86,7 @@ def retryRequest(
         resp = ex
     if isinstance(resp, Exception):
         if retryNr + 1 <= maximumRetries:
-            resp_text = str(resp).replace('\n', '\\n ')
+            resp_text = str(resp).replace('\n', '\\n ').replace('\r', '\\r ')
             logging.warning(f"Retrying request after exception: {resp_text}. API call: requests.{requestsFunction.__name__}({path}, {printKwargs(req_function_kwargs)})")
             time.sleep(min(initialRetryDelayS * 2**retryNr, maximumRetryDelayS))
             resp = retryRequest(
@@ -102,7 +103,7 @@ def retryRequest(
         else:
             raise resp
     elif resp.status_code in retryStatusCodes and retryNr + 1 <= maximumRetries:
-        resp_text = resp.text.replace('\n', '\\n ')
+        resp_text = resp.text.replace('\n', '\\n ').replace('\r', '\\r ')
         logging.warning(
             f"Retrying request after response with status code {resp.status_code}"
             + f" ({HTTPStatus(resp.status_code).phrase}): {resp_text}. "
