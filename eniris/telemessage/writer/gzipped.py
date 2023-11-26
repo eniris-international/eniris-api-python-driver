@@ -17,13 +17,13 @@ class GZipTelemessageWriter:
         self.compresslevel = compresslevel
 
     def writeTelemessage(self, message: Telemessage):
-        gzipped_data = gzip.compress(message.data, compresslevel=self.compresslevel)
-        ammended_headers = {**message.headers, "Content-Encoding": "gzip"}
-        gzipped_message = Telemessage(
-            message.parameters, gzipped_data, headers=ammended_headers
+        gzippedData = gzip.compress(message.data, compresslevel=self.compresslevel)
+        ammendedHeaders = {**message.headers, "Content-Encoding": "gzip"}
+        gzippedMessage = Telemessage(
+            message.parameters, gzippedData, headers=ammendedHeaders
         )
 
-        self.output.writeTelemessage(gzipped_message)
+        self.output.writeTelemessage(gzippedMessage)
 
     def flush(self):
         self.output.flush()

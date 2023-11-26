@@ -112,6 +112,8 @@ class TelemessageWrapper:
 
     def saveSnapshot(self, dirname: str):
         with self._lock:
+            if self._snapshotPath is not None:
+                return
             if self._isFinished:
                 return
             try:
@@ -125,11 +127,22 @@ class TelemessageWrapper:
 
     def removeSnapshot(self):
         with self._lock:
-            if not self._snapshotPath:
+            if self._snapshotPath is None:
                 return
             try:
                 os.remove(self._snapshotPath)
                 logging.info(f"Removed Telemessage from '{self._snapshotPath}'")
+                self._snapshotPath = None
+            except FileNotFoundError:
+                logging.exception(
+                    " ".join(
+                        [
+                            f"Failed to remove Telemessage from '{self._snapshotPath}'",
+                            "since this file no longer exists.",
+                            "Possibly another processes is modifying these files"
+                        ]
+                    )
+                )
                 self._snapshotPath = None
             except Exception:  # pylint: disable=broad-exception-caught
                 logging.exception(
@@ -138,30 +151,44 @@ class TelemessageWrapper:
 
     def updateSnapshot(self):
         with self._lock:
-            if self._snapshotPath:
-                newSnapshotPath = os.path.join(
-                    os.path.dirname(self._snapshotPath), self._filename()
+            if self._snapshotPath is None:
+                return
+            if self._isFinished:
+                return
+            newSnapshotPath = os.path.join(
+                os.path.dirname(self._snapshotPath), self._filename()
+            )
+            try:
+                os.rename(self._snapshotPath, newSnapshotPath)
+                logging.info(
+                    " ".join(
+                        [
+                            f"Moved Telemessage from '{self._snapshotPath}'",
+                            f"to '{newSnapshotPath}'",
+                        ]
+                    )
                 )
-                try:
-                    os.rename(self._snapshotPath, newSnapshotPath)
-                    logging.info(
-                        " ".join(
-                            [
-                                f"Moved Telemessage from '{self._snapshotPath}'",
-                                f"to '{newSnapshotPath}'",
-                            ]
-                        )
+                self._snapshotPath = newSnapshotPath
+            except FileNotFoundError:
+                logging.exception(
+                    " ".join(
+                        [
+                            f"Failed to move Telemessage from '{self._snapshotPath}'",
+                            f"to '{newSnapshotPath}': source file no longer exists.",
+                            "Possibly another processes is modifying these files"
+                        ]
                     )
-                    self._snapshotPath = newSnapshotPath
-                except Exception:  # pylint: disable=broad-exception-caught
-                    logging.exception(
-                        " ".join(
-                            [
-                                f"Failed to move Telemessage from '{self._snapshotPath}'",
-                                f" to '{newSnapshotPath}'",
-                            ]
-                        )
+                )
+                self._snapshotPath = None
+            except Exception:  # pylint: disable=broad-exception-caught
+                logging.exception(
+                    " ".join(
+                        [
+                            f"Failed to move Telemessage from '{self._snapshotPath}'",
+                            f" to '{newSnapshotPath}'",
+                        ]
                     )
+                )
 
     def reschedule(self, reason: str, queue):
         with self._lock:
@@ -312,7 +339,7 @@ class PooledTelemessageWriterDaemon(Thread):
         queue: TelemessageWrapperQueue,
         url: str = "https://neodata-ingress.eniris.be/v1/telemetry",
         params: "Optional[dict[str, str]]" = None,
-        authorizationHeaderFunction: "Union[Callable,None]" = None,
+        authorizationHeaderFunction: "Union[Callable, None]" = None,
         timeoutS: float = 60,
         retryStatusCodes: "Optional[set[int|HTTPStatus]]" = None,
         session: Optional[requests.Session] = None,
