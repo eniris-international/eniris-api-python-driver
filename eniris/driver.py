@@ -22,7 +22,7 @@ class AuthenticationFailure(Exception):
 
 def printKwargs(kwargs:dict, maxChars:int=256):
     res = ''
-    for k, v in kwargs:
+    for k, v in kwargs.items():
         res += f'{k}={v}, '
     if len(res) >= 2:
         res = res[-2:]
