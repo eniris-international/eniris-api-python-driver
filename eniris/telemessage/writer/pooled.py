@@ -390,7 +390,8 @@ class PooledTelemessageWriterDaemon(Thread):
                             [
                                 "Dropping telemessage due to",
                                 f"response with status code {resp.status_code}",
-                                f"({HTTPStatus(resp.status_code).phrase}): {resp.text}",
+                                f"({HTTPStatus(resp.status_code).phrase}): {resp.text}.",
+                                f"Request telemessage data: {tmw.telemessage.data}",
                             ]
                         )
                     )
