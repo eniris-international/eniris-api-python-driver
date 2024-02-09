@@ -116,7 +116,7 @@ def retryRequest(
             f"{printKwargs(req_function_kwargs)})"
         )
         try:
-            propRetryTimeS = float(resp.headers.get("retry-after"))
+            propRetryTimeS = float(resp.headers.get("retry-after", "nan"))
             if not math.isfinite(propRetryTimeS):
                 raise ValueError(f"Invalid 'retry-after' header: {propRetryTimeS}")
             time.sleep(max(initialRetryDelayS, min(propRetryTimeS, maximumRetryDelayS)))
