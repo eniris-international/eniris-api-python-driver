@@ -3,6 +3,7 @@ from typing import Callable, Optional
 import datetime
 import logging
 import time
+import math
 from threading import RLock
 from http import HTTPStatus
 
@@ -16,18 +17,19 @@ DEFAULT_RETRY_CODES: "set[HTTPStatus|int]" = set(
     ]
 )
 
+
 class AuthenticationFailure(Exception):
     "Raised when failing to authentiate to the Insights API"
 
 
-def printKwargs(kwargs:dict, maxChars:int=256):
-    res = ''
+def printKwargs(kwargs: dict, maxChars: int = 256):
+    res = ""
     for k, v in kwargs:
-        res += f'{k}={v}, '
+        res += f"{k}={v}, "
     if len(res) >= 2:
         res = res[-2:]
     if len(res) > maxChars:
-        res = res[:maxChars] + '...'
+        res = res[:maxChars] + "..."
     return res
 
 
@@ -70,10 +72,9 @@ def retryRequest(
         requests.Response: HTTP response
     """
     retryStatusCodes = (
-        DEFAULT_RETRY_CODES
-        if retryStatusCodes is None
-        else retryStatusCodes
+        DEFAULT_RETRY_CODES if retryStatusCodes is None else retryStatusCodes
     )
+    resp: "requests.Response|Exception"
     try:
         headers: "dict[str, str]" = req_function_kwargs.get("headers", {})
         if authorizationHeaderFunction is not None:
@@ -86,8 +87,11 @@ def retryRequest(
         resp = ex
     if isinstance(resp, Exception):
         if retryNr + 1 <= maximumRetries:
-            resp_text = str(resp).replace('\n', '\\n ').replace('\r', '\\r ')
-            logging.warning(f"Retrying request after exception: {resp_text}. API call: requests.{requestsFunction.__name__}({path}, {printKwargs(req_function_kwargs)})")
+            respText = str(resp).replace("\n", "\\n ").replace("\r", "\\r ")
+            logging.warning(
+                "Retrying request after exception: {respText}. "
+                f"API call: requests.{requestsFunction.__name__}({path}, {printKwargs(req_function_kwargs)})"
+            )
             time.sleep(min(initialRetryDelayS * 2**retryNr, maximumRetryDelayS))
             resp = retryRequest(
                 requestsFunction,
@@ -103,13 +107,19 @@ def retryRequest(
         else:
             raise resp
     elif resp.status_code in retryStatusCodes and retryNr + 1 <= maximumRetries:
-        resp_text = resp.text.replace('\n', '\\n ').replace('\r', '\\r ')
+        respText = resp.text.replace("\n", "\\n ").replace("\r", "\\r ")
         logging.warning(
-            f"Retrying request after response with status code {resp.status_code}"
-            + f" ({HTTPStatus(resp.status_code).phrase}): {resp_text}. "
-            + f"API call: requests.{requestsFunction.__name__}({path}, {printKwargs(req_function_kwargs)})"
+            f"Retrying request after response with status code {resp.status_code} "
+            f"({HTTPStatus(resp.status_code).phrase}): {respText}. "
+            f"API call: requests.{requestsFunction.__name__}({path}, {printKwargs(req_function_kwargs)})"
         )
-        time.sleep(min(initialRetryDelayS * 2**retryNr, maximumRetryDelayS))
+        try:
+            propRetryTimeS = float(resp.headers.get("retry-after"))
+            if not math.isfinite(propRetryTimeS):
+                raise ValueError(f"Invalid 'retry-after' header: {propRetryTimeS}")
+            time.sleep(max(initialRetryDelayS, min(propRetryTimeS, maximumRetryDelayS)))
+        except ValueError:
+            time.sleep(min(initialRetryDelayS * 2**retryNr, maximumRetryDelayS))
         resp = retryRequest(
             requestsFunction,
             path,
@@ -144,7 +154,7 @@ class ApiDriver:
         initialRetryDelayS: int = 1,
         maximumRetryDelayS: int = 60,
         retryStatusCodes: "Optional[set[int|HTTPStatus]]" = None,
-        session: Optional[requests.Session] = None,
+        session: "Optional[requests.Session]" = None,
     ):
         """Constructor. You must specify at least a username and password
 
@@ -177,10 +187,8 @@ class ApiDriver:
         self.maximumRetries = maximumRetries
         self.initialRetryDelayS = initialRetryDelayS
         self.maximumRetryDelayS = maximumRetryDelayS
-        self.retryStatusCodes: set[int|HTTPStatus] = (
-            DEFAULT_RETRY_CODES
-            if retryStatusCodes is None
-            else retryStatusCodes
+        self.retryStatusCodes: "set[int|HTTPStatus]" = (
+            DEFAULT_RETRY_CODES if retryStatusCodes is None else retryStatusCodes
         )
         self.refreshTokenLock = RLock()
         self.refreshDtAndToken = None
@@ -217,7 +225,7 @@ class ApiDriver:
                         raise AuthenticationFailure(f"Unable to login: {resp.text}")
                 except requests.Timeout as ex:
                     raise AuthenticationFailure(
-                        "Unable to login: " + "the API did not respond in time"
+                        "Unable to login: the API did not respond in time"
                     ) from ex
                 self.refreshDtAndToken = (currentDt, resp.text)
             elif (
@@ -245,7 +253,7 @@ class ApiDriver:
                     # valid for a while, but we should log an exception
                     logging.warning(
                         "Unable to renew the refresh token: "
-                        + "the API did not respond in time"
+                        "the API did not respond in time"
                     )
             return f"Bearer {self.refreshDtAndToken[1]}"
 
@@ -279,7 +287,7 @@ class ApiDriver:
                 except requests.Timeout as ex:
                     raise AuthenticationFailure(
                         "Unable to collect an access token: "
-                            +"the API did not respond in time"
+                        "the API did not respond in time"
                     ) from ex
                 self.accessDtAndToken = (currentDt, resp.text)
             return f"Bearer {self.accessDtAndToken[1]}"
@@ -330,7 +338,7 @@ class ApiDriver:
         path = (
             path
             if path.startswith("http://") or path.startswith("https://")
-            else self.apiUrl + path
+            else f"{self.apiUrl}{path}"
         )
         return retryRequest(
             self.session.get,
@@ -361,7 +369,7 @@ class ApiDriver:
         path = (
             path
             if path.startswith("http://") or path.startswith("https://")
-            else self.apiUrl + path
+            else f"{self.apiUrl}{path}"
         )
         return retryRequest(
             self.session.post,
@@ -394,7 +402,7 @@ class ApiDriver:
         path = (
             path
             if path.startswith("http://") or path.startswith("https://")
-            else self.apiUrl + path
+            else f"{self.apiUrl}{path}"
         )
         return retryRequest(
             self.session.put,
@@ -408,7 +416,7 @@ class ApiDriver:
             initialRetryDelayS=self.initialRetryDelayS,
             maximumRetryDelayS=self.maximumRetryDelayS,
             retryStatusCodes=self.retryStatusCodes,
-            **kwargs
+            **kwargs,
         )
 
     def delete(self, path: str, params=None, **kwargs) -> requests.Response:
@@ -424,7 +432,7 @@ class ApiDriver:
         path = (
             path
             if path.startswith("http://") or path.startswith("https://")
-            else self.apiUrl + path
+            else f"{self.apiUrl}{path}"
         )
         return retryRequest(
             self.session.delete,
