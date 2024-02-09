@@ -22,10 +22,10 @@ class AuthenticationFailure(Exception):
     "Raised when failing to authentiate to the Insights API"
 
 
-def printKwargs(kwargs: dict, maxChars: int = 256):
+def printKwargs(kwargs:dict, maxChars:int=256):
     res = ""
-    for k, v in kwargs:
-        res += f"{k}={v}, "
+    for k, v in kwargs.items():
+        res += f'{k}={v}, '
     if len(res) >= 2:
         res = res[-2:]
     if len(res) > maxChars:
@@ -90,7 +90,8 @@ def retryRequest(
             respText = str(resp).replace("\n", "\\n ").replace("\r", "\\r ")
             logging.warning(
                 "Retrying request after exception: {respText}. "
-                f"API call: requests.{requestsFunction.__name__}({path}, {printKwargs(req_function_kwargs)})"
+                f"API call: requests.{requestsFunction.__name__}({path}, "
+                f"{printKwargs(req_function_kwargs)})"
             )
             time.sleep(min(initialRetryDelayS * 2**retryNr, maximumRetryDelayS))
             resp = retryRequest(
@@ -111,7 +112,8 @@ def retryRequest(
         logging.warning(
             f"Retrying request after response with status code {resp.status_code} "
             f"({HTTPStatus(resp.status_code).phrase}): {respText}. "
-            f"API call: requests.{requestsFunction.__name__}({path}, {printKwargs(req_function_kwargs)})"
+            f"API call: requests.{requestsFunction.__name__}({path}, "
+            f"{printKwargs(req_function_kwargs)})"
         )
         try:
             propRetryTimeS = float(resp.headers.get("retry-after"))

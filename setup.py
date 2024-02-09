@@ -4,7 +4,11 @@ from setuptools import setup, find_packages
 with open("README.md", "r", encoding="utf8") as f:
     long_description = f.read()
 
+<<<<<<< HEAD
 VERSION = "0.8.8"
+=======
+VERSION = "0.8.10"
+>>>>>>> 0c13370b200d67da4b0a29efe3b1cb7428b60178
 setup(
     name="eniris",
     packages=find_packages(),
