@@ -22,10 +22,10 @@ class AuthenticationFailure(Exception):
     "Raised when failing to authentiate to the Insights API"
 
 
-def printKwargs(kwargs:dict, maxChars:int=256):
+def printKwargs(kwargs: dict, maxChars: int = 256):
     res = ""
     for k, v in kwargs.items():
-        res += f'{k}={v}, '
+        res += f"{k}={v}, "
     if len(res) >= 2:
         res = res[-2:]
     if len(res) > maxChars:
@@ -115,13 +115,25 @@ def retryRequest(
             f"API call: requests.{requestsFunction.__name__}({path}, "
             f"{printKwargs(req_function_kwargs)})"
         )
-        try:
-            propRetryTimeS = float(resp.headers.get("retry-after", "nan"))
-            if not math.isfinite(propRetryTimeS):
-                raise ValueError(f"Invalid 'retry-after' header: {propRetryTimeS}")
-            time.sleep(max(initialRetryDelayS, min(propRetryTimeS, maximumRetryDelayS)))
-        except ValueError:
-            time.sleep(min(initialRetryDelayS * 2**retryNr, maximumRetryDelayS))
+        sleepTimeS: "float|None" = None
+        if "retry-after" in resp.headers:
+            try:
+                retryAfterStr = resp.headers["retry-after"]
+                retryAfterFloat = float(retryAfterStr)
+                if not math.isfinite(retryAfterFloat):
+                    raise ValueError(f"Invalid 'retry-after' header: {retryAfterStr}")
+                sleepTimeS = retryAfterFloat
+            except ValueError as ex:
+                logging.warning(
+                    f"Invalid 'retry-after' header will be ignored: {retryAfterStr}"
+                )
+        if sleepTimeS is None and 500 <= resp.status_code < 600:
+            # In case of a server-side error without a specific retry-after header,
+            # we use a 60 sleep time to give the system extra time to recover
+            sleepTimeS = 60.0
+        if sleepTimeS is None:
+            sleepTimeS = initialRetryDelayS * 2**retryNr
+        time.sleep(max(initialRetryDelayS, min(sleepTimeS, maximumRetryDelayS)))
         resp = retryRequest(
             requestsFunction,
             path,
