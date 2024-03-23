@@ -91,7 +91,7 @@ def retryRequest(
         if retryNr + 1 <= maximumRetries:
             respText = str(resp).replace("\n", "\\n ").replace("\r", "\\r ")
             logging.warning(
-                "Retrying request after exception: {respText}. "
+                f"Retrying request after exception: {respText}. "
                 f"API call: requests.{requestsFunction.__name__}({path}, "
                 f"{printKwargs(req_function_kwargs)})"
             )
