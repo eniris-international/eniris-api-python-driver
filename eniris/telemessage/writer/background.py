@@ -101,8 +101,8 @@ class BackgroundTelemessageWriter(TelemessageWriter):
             self._new_messages: "list[TelemessageWrapper]" = []
         else:
             # self._new_messages: "list[TelemessageWrapper]" = TelemessageWrapper.loadSnapshotsFromDirectory(snapshotFolder)
+            # self._has_new_messages.set()
             self._new_messages: "list[TelemessageWrapper]" = []
-            self._has_new_messages.set()
         self._pending_messages:"list[TelemessageWrapper]" = []      # This will function as our heap
         self._no_messages_left = Event()
         self._no_messages_left.set()
