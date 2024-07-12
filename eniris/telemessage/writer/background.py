@@ -65,6 +65,7 @@ class BackgroundTelemessageWriter(TelemessageWriter):
             retries in seconds. Defaults to 60
         retryStatusCodes (set[int], optional): A set of all response code for which\
             a retry attempt must be made. Defaults to {429, 500, 503}
+        maxHeapSize (int, optional): Maximum amount of items that may be on the heap.
     """
 
     def __init__(
@@ -81,6 +82,7 @@ class BackgroundTelemessageWriter(TelemessageWriter):
         initialRetryDelayS: int = 1,
         maximumRetryDelayS: int = 60,
         retryStatusCodes: "Optional[set[int|HTTPStatus]]" = None,
+        maxHeapSize: int = None
     ):
         self.url = url
         self.authorizationHeaderFunction = authorizationHeaderFunction
@@ -97,6 +99,9 @@ class BackgroundTelemessageWriter(TelemessageWriter):
         
         self._lock = RLock()
         self._has_new_messages = Event()
+        self._max_heap_size = maxHeapSize
+        
+        # TODO: Making & reloading snapshots
         if snapshotFolder is None:
             self._new_messages: "list[TelemessageWrapper]" = []
         else:
@@ -134,6 +139,8 @@ class BackgroundTelemessageWriter(TelemessageWriter):
             # Reschedule failed sends to a later moment
             if failed_tmw is not None:
                 self.__reschedule(failure_reason, failed_tmw)
+            # Make sure the heap doesn't become too big
+            self.__lazy_limit_heap_size()
             # Signal if there are no more pending messages
             with self._lock:
                 if (len(self._pending_messages) + len(self._new_messages)) == 0:
@@ -232,3 +239,16 @@ class BackgroundTelemessageWriter(TelemessageWriter):
                     ]
                 )
             )
+            
+            
+    def __lazy_limit_heap_size(self):
+        """ Limit the amount of messages that still has to be send. """
+        # We know from the docs of heapq that:
+        # "Heaps are arrays for which a[k] <= a[2*k+1] and a[k] <= a[2*k+2] for all k, counting elements from 0"
+        # There is no guarantee that this is perfectly sorted from early to late in our case, but at least messages
+        # at the end of the queue will tend to be later. Our lazy approach to limit the size of the heap is to drop
+        # messages that are at the end of the heap. This is fast and easy.
+        if self._max_heap_size is None:
+            return
+        while len(self._pending_messages) > self._max_heap_size:
+            self._pending_messages.pop()
