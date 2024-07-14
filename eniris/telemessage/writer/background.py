@@ -143,6 +143,7 @@ class BackgroundTelemessageWriter(TelemessageWriter):
         self._no_messages_left = Event()
         self._no_messages_left.set()
         
+        self._flush_and_stop = Event()
         self._worker_thread = Thread(target=self.__worker, daemon=True)
         self._worker_thread.start()
             
@@ -159,6 +160,22 @@ class BackgroundTelemessageWriter(TelemessageWriter):
 
     def flush(self):
         self._no_messages_left.wait()
+        
+        
+    def close(self):
+        """
+        Closes the BackgroundTelemessageWriter.
+        Pending messages will be flushed.
+        After closing the BackgroundTelemessageWriter will no longer send messages.
+        """
+        self._flush_and_stop.set()
+        self.flush()
+        
+        
+    def __del__(self):
+        # Close the background thread when this object is destroyed.
+        if hasattr(self, "_worker_thread"):
+            self.close()
    
         
     def __loadSnapshots(self, snapshot_folder:str) -> "list[TelemessageWrapper]":
@@ -193,6 +210,10 @@ class BackgroundTelemessageWriter(TelemessageWriter):
         while True:
             # Get the next message
             tmw = self.__get_next()
+            # tmw will be None if everything has been send and there is a "flush and stop" signal.
+            # So end the worker
+            if tmw is None:
+                return
             # Try sending it to the database
             failure_reason, failed_tmw = self.__send(tmw)
             # Reschedule failed sends to a later moment
@@ -258,27 +279,38 @@ class BackgroundTelemessageWriter(TelemessageWriter):
             return None, None
             
             
-    def __get_next(self) -> TelemessageWrapper:
+    def __get_next(self) -> "TelemessageWrapper|None":
         """
         Get the next TelemessageWrapper to send to the database.
         This function blocks until a) a new message arrives or b) the schedule time of the first pending message happens.
-        We assume that new messages should are scheduled to be sent immediately (should be the case)
+        We assume that new messages are scheduled to be sent immediately (should be the case!), so they'll always bubble
+        to the top of the heap immediately.
+        
+        This function returns the next TelemessageWrapper to be sent, except when a "flush and stop" signal is received,
+        and all messages have been flushed. In that case it returns None.
         """
         if len(self._pending_messages) == 0:
-            wait_timeout_s = None
+            # If there are no more messages pending, then we'll check every 0.5s for a stop signal,
+            # until either the stop signal is set or a new message has arrived. New messages that arrive
+            # should always take precedence!
+            wait_timeout_s = 0.5
         else:
             wait_timeout_s = max(0.0, (self._pending_messages[0]._scheduledDt - datetime.now(timezone.utc)).total_seconds())
-        # Wait until new messages arive or until the timeout has exceeded
-        self._has_new_messages.wait(wait_timeout_s)
-        # Put all new messages on the heap
-        if self._has_new_messages.is_set():
-            with self._lock:
-                for tmw in self._new_messages:
-                    heappush(self._pending_messages, tmw)
-                self._new_messages = []
-                self._has_new_messages.clear() 
-        # Get the message that is scheduled to be send first
-        return heappop(self._pending_messages)
+        while True:
+            # Wait until new messages arive or until the timeout has exceeded
+            self._has_new_messages.wait(wait_timeout_s)
+            # Put all new messages on the heap
+            if self._has_new_messages.is_set():
+                with self._lock:
+                    for tmw in self._new_messages:
+                        heappush(self._pending_messages, tmw)
+                    self._new_messages = []
+                    self._has_new_messages.clear()
+            if len(self._pending_messages) > 0:
+                # Get the message that is scheduled to be send first
+                return heappop(self._pending_messages)
+            if self._flush_and_stop.is_set():
+                return None
     
     
     def __reschedule(self, reason:str, tmw:TelemessageWrapper):
