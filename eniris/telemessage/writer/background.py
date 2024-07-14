@@ -111,6 +111,60 @@ class BackgroundTelemessageWriter(TelemessageWriter):
         maxHeapSize: int = None,
         **kwargs
     ):
+        self.daemon = BackgroundTelemessageWriterDaemon(
+                snapshotFolder,
+                minimumSnaphotAgeS,
+                snapshotPeriodS,
+                url,
+                params,
+                authorizationHeaderFunction,
+                timeoutS,
+                session,
+                maximumRetries,
+                initialRetryDelayS,
+                maximumRetryDelayS,
+                retryStatusCodes,
+                maxHeapSize,
+                **kwargs
+            )
+        self.daemon.start()
+            
+
+    def writeTelemessage(self, message: Telemessage):
+        """
+        Write a single telemetry message to the API
+        """
+        self.daemon.writeTelemessage(message)
+        
+        
+    def __del__(self):
+        self.daemon.close()
+        self.daemon.join()
+            
+            
+class BackgroundTelemessageWriterDaemon(Thread):
+    
+    def __init__(
+        self,
+        snapshotFolder: "str|None" = None,
+        minimumSnaphotAgeS: float = 60.0,
+        snapshotPeriodS: float = 3600.0,
+        url: str = "https://neodata-ingress.eniris.be/v1/telemetry",
+        params: "Optional[dict[str, str]]" = None,
+        authorizationHeaderFunction: "Callable|None" = None,
+        timeoutS: float = 60,
+        session: Optional[requests.Session] = None,
+        maximumRetries: int = 4,
+        initialRetryDelayS: int = 1,
+        maximumRetryDelayS: int = 60,
+        retryStatusCodes: "Optional[set[int|HTTPStatus]]" = None,
+        maxHeapSize: int = None,
+        **kwargs
+    ):
+        super().__init__(
+            name="bg-telemessage-writer"
+        )
+        
         self.url = url
         self.authorizationHeaderFunction = authorizationHeaderFunction
         self.session = requests.Session() if session is None else session
@@ -144,10 +198,8 @@ class BackgroundTelemessageWriter(TelemessageWriter):
         self._no_messages_left.set()
         
         self._flush_and_stop = Event()
-        self._worker_thread = Thread(target=self.__worker, daemon=True)
-        self._worker_thread.start()
+        
             
-
     def writeTelemessage(self, message: Telemessage):
         """
         Write a single telemetry message to the API
@@ -171,11 +223,14 @@ class BackgroundTelemessageWriter(TelemessageWriter):
         self._flush_and_stop.set()
         self.flush()
         
+    
+    def stop(self):
+        """A method to stop the daemon thread."""
+        self.close()
+        
         
     def __del__(self):
-        # Close the background thread when this object is destroyed.
-        if hasattr(self, "_worker_thread"):
-            self.close()
+        self.close()
    
         
     def __loadSnapshots(self, snapshot_folder:str) -> "list[TelemessageWrapper]":
@@ -206,7 +261,7 @@ class BackgroundTelemessageWriter(TelemessageWriter):
         return result
     
          
-    def __worker(self):
+    def run(self):
         while True:
             # Get the next message
             tmw = self.__get_next()
