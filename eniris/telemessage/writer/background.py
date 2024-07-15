@@ -66,7 +66,9 @@ class BackgroundTelemessageWriter(TelemessageWriter):
     The snapshots will be reloaded when the service starts again.
 
     Args:
-        snapshotFolder (str, optional): Folder where snapshots will be stored
+        snapshotFolder (str, optional): Folder where snapshots will be stored.\
+            This must be unique for this instance! Don't let to instances write
+            to the same folder.
         minimumSnaphotAgeS (float, optional): Minimum time telemessages must be\
             in memory before they are snapshotted. Defaults to 60.0 seconds.
         snapshotPeriodS (float, optional): How often the snapshot service will\
