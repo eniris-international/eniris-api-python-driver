@@ -3,7 +3,7 @@ import time
 from datetime import datetime, timedelta, timezone
 from dataclasses import dataclass
 from threading import RLock, Thread, Condition
-from typing import Union, Tuple, FrozenSet
+from typing import Optional, Union, Tuple, FrozenSet
 
 from eniris.point import Point, Namespace, FieldSet
 from eniris.point.writer.writer import PointToTelemessageWriter
@@ -163,7 +163,7 @@ class PointBufferDict:
         self._lock = RLock()
         self._namespace2buffer: "dict[frozenset[tuple[str, str]], PointBuffer]" = {}
         self._nrBytes = 0
-        self._hasNewContent: Condition = Condition(self._lock)
+        self._newContentOrStoppingCondition: Condition = Condition(self._lock)
 
     def writePoints(self, points: "list[Point]"):
         """Writes a list of points to the buffer dictionary. If any buffer becomes too
@@ -206,7 +206,7 @@ class PointBufferDict:
             if self._nrBytes > self.maximumBufferSizeBytes:
                 messages += self.flush()
             else:
-                self._hasNewContent.notify()
+                self._newContentOrStoppingCondition.notify()
         return messages
 
     def flush(self) -> "list[Telemessage]":
@@ -225,6 +225,10 @@ class PointBufferDict:
             self._namespace2buffer = {}
             self._nrBytes = 0
         return messages
+
+    def stop(self):
+        with self._lock:
+            self._newContentOrStoppingCondition.notify()
 
 
 class BufferedPointToTelemessageWriter(PointToTelemessageWriter):
@@ -274,6 +278,7 @@ class BufferedPointToTelemessageWriter(PointToTelemessageWriter):
         self.pointBufferDict = PointBufferDict(
             maximumBatchSizeBytes, maximumBufferSizeBytes
         )
+        self.daemon: "Optional[BufferedPointToTelemessageWriterDaemon]"
         if lingerTimeS is not None:
             self.daemon = BufferedPointToTelemessageWriterDaemon(
                 output, self.pointBufferDict, lingerTimeS
@@ -323,6 +328,7 @@ class BufferedPointToTelemessageWriter(PointToTelemessageWriter):
     def __del__(self):
         """Destructor method for the BufferedPointToTelemessageWriter. Stops the
         daemon and flushes any remaining messages."""
+        self.pointBufferDict.stop()
         if self.daemon is not None:
             self.daemon.stop()
             self.flush()
@@ -363,7 +369,7 @@ class BufferedPointToTelemessageWriterDaemon(Thread):
                     self._output is not None
                     and len(self.pointBufferDict._namespace2buffer) == 0
                 ):
-                    self.pointBufferDict._hasNewContent.wait()
+                    self.pointBufferDict._newContentOrStoppingCondition.wait()
                 if self._output is None:
                     logging.debug("Stopped BufferedPointToTelemessageWriterDaemon")
                     return
