@@ -163,7 +163,9 @@ class PointBufferDict:
         self._lock = RLock()
         self._namespace2buffer: "dict[frozenset[tuple[str, str]], PointBuffer]" = {}
         self._nrBytes = 0
+        self._isStopping = False
         self._newContentOrStoppingCondition: Condition = Condition(self._lock)
+        self._stoppingCondition: Condition = Condition(self._lock)
 
     def writePoints(self, points: "list[Point]"):
         """Writes a list of points to the buffer dictionary. If any buffer becomes too
@@ -228,7 +230,9 @@ class PointBufferDict:
 
     def stop(self):
         with self._lock:
+            self._isStopping = True
             self._newContentOrStoppingCondition.notify()
+            self._stoppingCondition.notify()
 
 
 class BufferedPointToTelemessageWriter(PointToTelemessageWriter):
@@ -317,7 +321,7 @@ class BufferedPointToTelemessageWriter(PointToTelemessageWriter):
             if self.daemon:
                 try:
                     self.output.writeTelemessage(message)
-                except Exception: # pylint: disable=broad-exception-caught
+                except Exception:  # pylint: disable=broad-exception-caught
                     logging.exception(
                         "Failed to write Telemessage from "
                         + "BufferedPointToTelemessageWriter"
@@ -328,11 +332,8 @@ class BufferedPointToTelemessageWriter(PointToTelemessageWriter):
     def __del__(self):
         """Destructor method for the BufferedPointToTelemessageWriter. Stops the
         daemon and flushes any remaining messages."""
+        self.flush()
         self.pointBufferDict.stop()
-        if self.daemon is not None:
-            self.daemon.stop()
-            # self.daemon.join()
-            self.flush()
 
 
 class BufferedPointToTelemessageWriterDaemon(Thread):
@@ -347,6 +348,7 @@ class BufferedPointToTelemessageWriterDaemon(Thread):
       lingerTimeS (float, optional): Maximum time a point can be hold in a buffer\
         before being written. Defaults to 1 s
     """
+
     # pylint: disable=protected-access
 
     def __init__(
@@ -356,23 +358,22 @@ class BufferedPointToTelemessageWriterDaemon(Thread):
         lingerTimeS: float = 1,
     ):
         super().__init__()
+        self.output = output
         self.lingerTimeS = lingerTimeS
         self.pointBufferDict = pointBufferDict
         self.daemon = True
         self.name = "buffered-point-to-telemsg-writer-daemon"
-        self._output = output
-        self._isKilled: Condition = Condition(self.pointBufferDict._lock)
 
     def run(self) -> None:
         logging.debug("Started BufferedPointToTelemessageWriterDaemon")
         with self.pointBufferDict._lock:
             while True:
                 while (
-                    self._output is not None
+                    not self.pointBufferDict._isStopping
                     and len(self.pointBufferDict._namespace2buffer) == 0
                 ):
                     self.pointBufferDict._newContentOrStoppingCondition.wait()
-                if self._output is None:
+                if self.pointBufferDict._isStopping:
                     logging.debug("Stopped BufferedPointToTelemessageWriterDaemon")
                     return
                 curDt = datetime.now(timezone.utc)
@@ -383,11 +384,11 @@ class BufferedPointToTelemessageWriterDaemon(Thread):
                     buffer = self.pointBufferDict._namespace2buffer[key]
                     if buffer.creationDt < thresholdDt:
                         try:
-                            self._output.writeTelemessage(buffer.toTelemessage())
-                        except Exception: # pylint: disable=broad-exception-caught
+                            self.output.writeTelemessage(buffer.toTelemessage())
+                        except Exception:  # pylint: disable=broad-exception-caught
                             logging.exception(
                                 "Failed to write Telemessage from "
-                                  "BufferedPointToTelemessageWriterDaemon.run"
+                                "BufferedPointToTelemessageWriterDaemon.run"
                             )
                         self.pointBufferDict._nrBytes -= buffer.nrBytes
                     else:
@@ -402,10 +403,4 @@ class BufferedPointToTelemessageWriterDaemon(Thread):
                     nextWakeupDt = minCreationDt + timedelta(seconds=self.lingerTimeS)
                     sleepTimeS = nextWakeupDt.timestamp() - time.time()
                     if sleepTimeS > 0:
-                        self._isKilled.wait(sleepTimeS)
-
-    def stop(self):
-        """A method to stop the daemon thread."""
-        with self.pointBufferDict._lock:
-            self._output = None
-            self._isKilled.notify()
+                        self.pointBufferDict._stoppingCondition.wait(sleepTimeS)
