@@ -331,6 +331,7 @@ class BufferedPointToTelemessageWriter(PointToTelemessageWriter):
         self.pointBufferDict.stop()
         if self.daemon is not None:
             self.daemon.stop()
+            # self.daemon.join()
             self.flush()
 
 
@@ -358,6 +359,7 @@ class BufferedPointToTelemessageWriterDaemon(Thread):
         self.lingerTimeS = lingerTimeS
         self.pointBufferDict = pointBufferDict
         self.daemon = True
+        self.name = "buffered-point-to-telemsg-writer-daemon"
         self._output = output
         self._isKilled: Condition = Condition(self.pointBufferDict._lock)
 
