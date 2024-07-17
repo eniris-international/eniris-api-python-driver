@@ -278,6 +278,7 @@ class BufferedPointToTelemessageWriter(PointToTelemessageWriter):
         maximumBatchSizeBytes: int = 10_000_000,
         maximumBufferSizeBytes: int = 100_000_000,
     ):
+        self.closed = False
         super().__init__(output)
         self.pointBufferDict = PointBufferDict(
             maximumBatchSizeBytes, maximumBufferSizeBytes
@@ -328,12 +329,17 @@ class BufferedPointToTelemessageWriter(PointToTelemessageWriter):
                     )
             else:
                 self.output.writeTelemessage(message)
-
-    def __del__(self):
+                
+    def close(self):
         """Destructor method for the BufferedPointToTelemessageWriter. Stops the
         daemon and flushes any remaining messages."""
-        self.flush()
-        self.pointBufferDict.stop()
+        if not self.closed:
+            self.flush()
+            self.pointBufferDict.stop()
+        self.closed = True
+
+    def __del__(self):
+        self.close()
 
 
 class BufferedPointToTelemessageWriterDaemon(Thread):

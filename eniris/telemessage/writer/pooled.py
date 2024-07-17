@@ -522,6 +522,7 @@ class PooledTelemessageWriter(TelemessageWriter):
         maximumRetryDelayS: int = 60,
         retryStatusCodes: "Optional[set[int|HTTPStatus]]" = None,
     ):
+        self.closed = False
         params = {} if params is None else params
         retryStatusCodes = (
             DEFAULT_RETRY_CODES if retryStatusCodes is None else retryStatusCodes
@@ -571,11 +572,16 @@ class PooledTelemessageWriter(TelemessageWriter):
     def flush(self):
         for tmw in self.queue.content():
             tmw.wait()
+            
+    def close(self):
+        if not self.closed:
+            self.queue.stop()
+            for deamon in self.pool:
+                deamon.join()
+            if self.snapshotDaemon is not None:
+                self.snapshotDaemon.join()
+                # self.snapshotDaemon.fixSnaphots(self.queue.content(), False)
+        self.closed = True
 
     def __del__(self):
-        self.queue.stop()
-        for deamon in self.pool:
-            deamon.join()
-        if self.snapshotDaemon is not None:
-            self.snapshotDaemon.join()
-            # self.snapshotDaemon.fixSnaphots(self.queue.content(), False)
+        self.close()

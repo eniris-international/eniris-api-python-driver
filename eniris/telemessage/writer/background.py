@@ -64,6 +64,10 @@ class BackgroundTelemessageWriter(TelemessageWriter):
     care of message retries. To avoid dataloss in case of unexpected shutdowns,
     Messages which remain unsent can be snapshotted a specific folder.
     The snapshots will be reloaded when the service starts again.
+    
+    If there is a snapshotFolder and the writer is closed or destroyed, then
+    all pending messages will be snapshotted at closure. If there isn't, all
+    messages will be written immediately, and dropped at a failure.
 
     Args:
         snapshotFolder (str, optional): Folder where snapshots will be stored.\
@@ -138,10 +142,13 @@ class BackgroundTelemessageWriter(TelemessageWriter):
         """
         self.daemon.writeTelemessage(message)
         
-        
-    def __del__(self):
+    def close(self):
         self.daemon.close()
         self.daemon.join()
+        
+        
+    def __del__(self):
+        self.close()
             
             
 class BackgroundTelemessageWriterDaemon(Thread):
@@ -181,7 +188,8 @@ class BackgroundTelemessageWriterDaemon(Thread):
         self.maximumRetryDelayS = maximumRetryDelayS
         
         self._lock = RLock()
-        self._has_new_messages = Event()
+        self._stop_signal = Event()
+        self._has_new_messages_or_stop = Event()        # At a stop, both self._stop and self._has_new_messages_or_stop are set!
         self._max_heap_size = maxHeapSize
         
         self._snapshot_folder = snapshotFolder                
@@ -193,13 +201,12 @@ class BackgroundTelemessageWriterDaemon(Thread):
         else:
             self._new_messages: "list[TelemessageWrapper]" = self.__loadSnapshots(snapshotFolder)
             if len(self._new_messages) > 0:
-                self._has_new_messages.set()
+                self._has_new_messages_or_stop.set()
             
         self._pending_messages:"list[TelemessageWrapper]" = []      # This will function as our heap
         self._no_messages_left = Event()
         self._no_messages_left.set()
         
-        self._flush_and_stop = Event()
         
             
     def writeTelemessage(self, message: Telemessage):
@@ -208,22 +215,25 @@ class BackgroundTelemessageWriterDaemon(Thread):
         """
         with self._lock:
             self._new_messages.append(TelemessageWrapper(message))
-            self._has_new_messages.set()
+            self._has_new_messages_or_stop.set()
             self._no_messages_left.clear()
 
 
     def flush(self):
+        """Wait until there are no pending messages left"""
         self._no_messages_left.wait()
         
         
-    def close(self):
+    def close(self, blocking:bool=False):
         """
         Closes the BackgroundTelemessageWriter.
         Pending messages will be flushed.
         After closing the BackgroundTelemessageWriter will no longer send messages.
         """
-        self._flush_and_stop.set()
-        self.flush()
+        self._stop_signal.set()        # Set the stop event first!
+        self._has_new_messages_or_stop.set()
+        if blocking:
+            self._no_messages_left.wait()
         
     
     def stop(self):
@@ -267,9 +277,10 @@ class BackgroundTelemessageWriterDaemon(Thread):
         while True:
             # Get the next message
             tmw = self.__get_next()
-            # tmw will be None if everything has been send and there is a "flush and stop" signal.
-            # So end the worker
+            # tmw will be None if everything has been send and there is a "stop" signal.
+            # So write the pending messages to disk and end the worker
             if tmw is None:
+                self.__take_snapshot()
                 return
             # Try sending it to the database
             failure_reason, failed_tmw = self.__send(tmw)
@@ -343,31 +354,48 @@ class BackgroundTelemessageWriterDaemon(Thread):
         We assume that new messages are scheduled to be sent immediately (should be the case!), so they'll always bubble
         to the top of the heap immediately.
         
-        This function returns the next TelemessageWrapper to be sent, except when a "flush and stop" signal is received,
-        and all messages have been flushed. In that case it returns None.
+        This function returns the next TelemessageWrapper to be sent, except when a stop signal is received. In that case 
+        it returns None.
         """
         if len(self._pending_messages) == 0:
-            # If there are no more messages pending, then we'll check every 0.5s for a stop signal,
-            # until either the stop signal is set or a new message has arrived. New messages that arrive
-            # should always take precedence!
-            wait_timeout_s = 0.5
+            # If there are no more messages pending, then wait until new messages arrive
+            wait_timeout_s = None
         else:
+            # Else wait at most until the next pending message is scheduled to be send
             wait_timeout_s = max(0.0, (self._pending_messages[0]._scheduledDt - datetime.now(timezone.utc)).total_seconds())
         while True:
-            # Wait until new messages arive or until the timeout has exceeded
-            self._has_new_messages.wait(wait_timeout_s)
-            # Put all new messages on the heap
-            if self._has_new_messages.is_set():
-                with self._lock:
-                    for tmw in self._new_messages:
-                        heappush(self._pending_messages, tmw)
-                    self._new_messages = []
-                    self._has_new_messages.clear()
-            if len(self._pending_messages) > 0:
+            
+            if not self._stop_signal.is_set():
+                # Wait until new messages arive or until the timeout has exceeded
+                # - but only if there is no stop event
+                self._has_new_messages_or_stop.wait(wait_timeout_s)
+                
+            # Put all new messages (if any) on the heap
+            with self._lock:
+                for tmw in self._new_messages:
+                    heappush(self._pending_messages, tmw)
+                self._new_messages = []
+                self._has_new_messages_or_stop.clear()
+                
+            # If a stop event is set:
+            if self._stop_signal.is_set():
+                if self._snapshot_folder is None:
+                    # In case of a stop event when there is no snapshot folder, try writing each pending message exactly once.
+                    if len(self._pending_messages) == 0:
+                        return None
+                    tmw = heappop(self._pending_messages)
+                    tmw._retryNr = self.maximumRetries      # This forces that there will only be one try, no reschedule.
+                    return tmw
+                else:
+                    # Else returning None signals to snapshot all pending messages
+                    return None
+            elif len(self._pending_messages) > 0:
+                # if not self._stop.is_set(), then there should always be pending messages - but better safe than sorry so check!
                 # Get the message that is scheduled to be send first
                 return heappop(self._pending_messages)
-            if self._flush_and_stop.is_set():
-                return None
+            else:
+                # There are no pending messages, so wait until new messages arrive
+                wait_timeout_s = None
     
     
     def __reschedule(self, reason:str, tmw:TelemessageWrapper):

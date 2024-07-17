@@ -11,6 +11,9 @@ class PointWriter:
 
     def writePoints(self, points: "list[Point]"):
         raise NotImplementedError("This method should be overridden in child classes")
+    
+    def close(self):
+        pass
 
     def flush(self):
         pass
@@ -30,6 +33,9 @@ class PointWriterDecorator(PointWriter):
 
     def __init__(self, output: PointWriter):
         self.output = output
+        
+    def close(self):
+        self.output.close()
 
     def flush(self):
         """Flush any internal state, i.e. make sure that any internally stored or
@@ -52,6 +58,9 @@ class PointToTelemessageWriter(PointWriter):
 
     def __init__(self, output: TelemessageWriter):
         self.output = output
+        
+    def close(self):
+        self.output.close()
 
     def flush(self):
         """Flush any internal state, i.e. make sure that any internally stored or

@@ -24,6 +24,9 @@ class GZipTelemessageWriter:
         )
 
         self.output.writeTelemessage(gzippedMessage)
+        
+    def close(self):
+        self.output.close()
 
     def flush(self):
         self.output.flush()

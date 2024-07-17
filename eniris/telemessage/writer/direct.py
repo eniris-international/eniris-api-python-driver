@@ -69,6 +69,10 @@ class DirectTelemessageWriter(TelemessageWriter):
             DEFAULT_RETRY_CODES if retryStatusCodes is None else retryStatusCodes
         )
         self.session = Session() if session is None else session
+        
+    def close(self):
+      """There's nothing special that must be closed"""
+      pass
 
     def writeTelemessage(self, message: Telemessage):
         """
