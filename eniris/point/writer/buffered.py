@@ -410,3 +410,111 @@ class BufferedPointToTelemessageWriterDaemon(Thread):
                     sleepTimeS = nextWakeupDt.timestamp() - time.time()
                     if sleepTimeS > 0:
                         self.pointBufferDict._stoppingCondition.wait(sleepTimeS)
+
+
+
+class NaiveBufferedPointToTelemessageWriter(PointToTelemessageWriter):
+    """
+    A NaiveBufferedPointToTelemessageWriter is similar to a BufferedPointToTelemessageWriter,
+    with the distinction that it does not guarantee that a buffer will be flushed
+    immediately when the lingerTimeS has passed since its creation. Buffers will
+    only be flushed if writePoints() is called, and they are expired at that moment,
+    or too big in size.
+    
+    This is useful in cases where we want to avoid having a worker thread, and
+    we are sure Points are produced regularly, and we want to ensure that points
+    are written as efficiently as possible, and we don't care about the exact timing.
+
+    Args:
+      lingerTimeS (float, optional): Minimum time a point should be hold in a buffer\
+        before being written. When set to zero, points are passed through immediately.
+        Defaults to 1 s
+      maximumBatchSizeBytes (int, optional): Maximum size in bytes for each PointBuffer\
+        batch. Defaults to 10 MB
+      maximumBufferSizeBytes (int, optional): Maximum size in bytes for the entire\
+        buffer. Defaults to 100 MB
+
+    Example:
+      >>> from eniris.point import Point
+      >>> from eniris.point.writer import NaiveBufferedPointToTelemessageWriter
+      >>> from eniris.telemessage.writer import TelemessagePrinter
+      >>> from datetime import datetime
+      >>> import time
+      >>>
+      >>> ns = {'database': 'myDatabase', 'retentionPolicy': 'myRetentionPolicy'}
+      >>> pLiving0 = Point(ns, 'homeSensors', datetime(2023, 1, 1), {'id': 'livingroomSensor'}, {'temp_C': 18., 'humidity_perc': 20.})
+      >>> pSauna0 = Point(ns, 'homeSensors', datetime(2023, 1, 1), {'id': 'saunaSensor'}, {'temp_C': 40., 'humidity_perc': 90.})
+      >>>
+      >>> writer = NaiveBufferedPointToTelemessageWriter(TelemessagePrinter(), lingerTimeS=0.1)
+      >>> writer.writePoints([pLiving0])
+      >>> time.sleep(0.01)
+      >>> writer.writePoints([pSauna0])
+      >>> time.sleep(0.1)
+      TelemessagePrinter Telemessage(parameters={'db': 'myDatabase', 'rp': 'myRetentionPolicy'}, data=[b'homeSensors,id=livingroomSensor temp_C=18.0,humidity_perc=20.0 1672527600000000000', b'homeSensors,id=saunaSensor temp_C=40.0,humidity_perc=90.0 1672527600000000000'])
+    """
+
+    def __init__(
+        self,
+        output: TelemessageWriter,
+        lingerTimeS: float = 1.0,
+        maximumBatchSizeBytes: int = 10_000_000,
+        maximumBufferSizeBytes: int = 100_000_000,
+    ):
+        super().__init__(output)
+        self.pointBufferDict = PointBufferDict(
+            maximumBatchSizeBytes, maximumBufferSizeBytes
+        )
+        self.lingerTime = timedelta(seconds=lingerTimeS)
+
+    def writePoints(self, points: "list[Point]"):
+        """Write each Point of a list to its the buffer corresponding with its
+        namespace. If a specific buffer becomes too large or if the combined size of
+        all buffers becomed too large, it will be emptied and a Telemessage will be
+        sent via the output.
+
+        Args:
+        - points (list[Point]): A list of points to write to the buffer.
+        """
+        # Add points to the buffers. If they would become too large,
+        # telemessages are created
+        messages = self.pointBufferDict.writePoints(points)
+        # Empty the buffers with old content
+        thresholdDt = datetime.now(timezone.utc) - self.lingerTime
+        newNamespace2buffer = {}
+        for key, buffer in self.pointBufferDict._namespace2buffer.items():
+            if buffer.creationDt < thresholdDt:
+                messages.append(buffer.toTelemessage())
+                self.pointBufferDict._nrBytes -= buffer.nrBytes
+            else:
+                newNamespace2buffer[key] = buffer
+        self.pointBufferDict._namespace2buffer = newNamespace2buffer
+        # Write the messages
+        self._writeMessages(messages)
+
+    def _flush(self):
+        """Flushes all points from the namespace buffers, writing them to the output
+        as Telemessages."""
+        self._writeMessages(self.pointBufferDict.flush())
+
+    def _writeMessages(self, messages: "list[Telemessage]"):
+        """Write each Telemessage of a list to the output.
+        When a daemon is present, messages from the deamon cannot bubble up
+        and thus we catch exceptions which occur when writing from the main
+        thread for consistency. When no daemon is present, exceptions are allowed
+        to bubble up.
+
+        Args:
+        - messages (list[Telemessage]): A list of messages to write to the output.
+        """
+        for message in messages:
+            self.output.writeTelemessage(message)
+                
+    def close(self):
+        """Destructor method for the BufferedPointToTelemessageWriter. Stops the
+        daemon and flushes any remaining messages."""
+        self.flush()
+        self.pointBufferDict.stop()
+
+    def __del__(self):
+        self.close()
+
