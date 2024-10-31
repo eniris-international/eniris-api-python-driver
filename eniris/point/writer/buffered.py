@@ -426,6 +426,7 @@ class NaiveBufferedPointToTelemessageWriter(PointToTelemessageWriter):
     are written as efficiently as possible, and we don't care about the exact timing.
 
     Args:
+      output (TelemessageWriter): The output TelemessageWriter to write to
       lingerTimeS (float, optional): Minimum time a point should be hold in a buffer\
         before being written. When set to zero, points are passed through immediately.
         Defaults to 1 s
