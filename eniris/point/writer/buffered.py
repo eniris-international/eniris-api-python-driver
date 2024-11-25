@@ -482,13 +482,14 @@ class NaiveBufferedPointToTelemessageWriter(PointToTelemessageWriter):
         # Empty the buffers with old content
         thresholdDt = datetime.now(timezone.utc) - self.lingerTime
         newNamespace2buffer = {}
-        for key, buffer in self.pointBufferDict._namespace2buffer.items():
-            if buffer.creationDt < thresholdDt:
-                messages.append(buffer.toTelemessage())
-                self.pointBufferDict._nrBytes -= buffer.nrBytes
-            else:
-                newNamespace2buffer[key] = buffer
-        self.pointBufferDict._namespace2buffer = newNamespace2buffer
+        with self.pointBufferDict._lock:
+            for key, buffer in self.pointBufferDict._namespace2buffer.items():
+                if buffer.creationDt < thresholdDt:
+                    messages.append(buffer.toTelemessage())
+                    self.pointBufferDict._nrBytes -= buffer.nrBytes
+                else:
+                    newNamespace2buffer[key] = buffer
+            self.pointBufferDict._namespace2buffer = newNamespace2buffer
         # Write the messages
         self._writeMessages(messages)
 
