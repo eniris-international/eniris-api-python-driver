@@ -333,6 +333,7 @@ class BufferedPointToTelemessageWriter(PointToTelemessageWriter):
     def close(self):
         """Destructor method for the BufferedPointToTelemessageWriter. Stops the
         daemon and flushes any remaining messages."""
+        # TODO: Should we not call self.output.close() when the daemon has closed, if there is one?
         if not self.closed:
             self.flush()
             self.pointBufferDict.stop()
@@ -466,6 +467,7 @@ class NaiveBufferedPointToTelemessageWriter(PointToTelemessageWriter):
             maximumBatchSizeBytes, maximumBufferSizeBytes
         )
         self.lingerTime = timedelta(seconds=lingerTimeS)
+        self.closed = False
 
     def writePoints(self, points: "list[Point]"):
         """Write each Point of a list to its the buffer corresponding with its
@@ -476,6 +478,9 @@ class NaiveBufferedPointToTelemessageWriter(PointToTelemessageWriter):
         Args:
         - points (list[Point]): A list of points to write to the buffer.
         """
+        if self.closed:
+            # Drop points if the writer is closed already!
+            return
         # Add points to the buffers. If they would become too large,
         # telemessages are created
         messages = self.pointBufferDict.writePoints(points)
@@ -514,8 +519,11 @@ class NaiveBufferedPointToTelemessageWriter(PointToTelemessageWriter):
     def close(self):
         """Destructor method for the BufferedPointToTelemessageWriter. Stops the
         daemon and flushes any remaining messages."""
-        self.flush()
-        self.pointBufferDict.stop()
+        if not self.closed:
+            self.flush()
+            self.pointBufferDict.stop()
+            self.closed = True
+            self.output.close()
 
     def __del__(self):
         self.close()
