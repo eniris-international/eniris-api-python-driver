@@ -321,6 +321,7 @@ class BufferedPointToTelemessageWriter(PointToTelemessageWriter):
         for message in messages:
             if self.daemon:
                 try:
+                    # TODO: This is not thread safe. We shoud probably do "with self.pointBufferDict._lock:""
                     self.output.writeTelemessage(message)
                 except Exception:  # pylint: disable=broad-exception-caught
                     logging.exception(
@@ -333,10 +334,12 @@ class BufferedPointToTelemessageWriter(PointToTelemessageWriter):
     def close(self):
         """Destructor method for the BufferedPointToTelemessageWriter. Stops the
         daemon and flushes any remaining messages."""
-        # TODO: Should we not call self.output.close() when the daemon has closed, if there is one?
         if not self.closed:
             self.flush()
             self.pointBufferDict.stop()
+            if self.daemon:
+                self.daemon.join()
+            self.output.close()
         self.closed = True
 
     def __del__(self):
