@@ -335,12 +335,12 @@ class BufferedPointToTelemessageWriter(PointToTelemessageWriter):
         """Destructor method for the BufferedPointToTelemessageWriter. Stops the
         daemon and flushes any remaining messages."""
         if not self.closed:
+            self.closed = True
             self.flush()
             self.pointBufferDict.stop()
             if self.daemon:
                 self.daemon.join()
             self.output.close()
-        self.closed = True
 
     def __del__(self):
         self.close()
