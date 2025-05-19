@@ -38,3 +38,53 @@ Furthermore, the following methods are exposed:
   - json (dict, optional, default: None): JSON body of the request. The json argument and the data argument cannot both be different from None
   - params (dict, optional, default: None): URL query parameters
   - data (string or dict, optional, default: None): Payload of the request. The json argument and the data argument cannot both be different from None
+
+## Telemetry Helper
+
+#### `getControllerData(nodeId: str, retentionPolicy: str, field: str, lastN: int = 1) -> List[Dict]`
+
+Retrieves the last `lastN` points for a given field and node by querying the `/v1/telemetry/query` endpoint.
+
+**Arguments**
+
+- `nodeId` (`str`): unique identifier of the device/node  
+- `retentionPolicy` (`str`): retention policy
+- `field` (`str`): the measurement field to select 
+- `lastN` (`int`, optional): number of points to fetch,. If not provided, no `limit` is sent.
+
+**Behavior**
+
+Builds an Influx-style JSON query:
+```python
+[
+  {
+    "select": ["<field>"],
+    "from": {
+      "database":       "beauvent",
+      "retentionPolicy":"<retentionPolicy>",
+      "measurement":    "submeteringMetrics"
+    },
+    "where": {
+      "time": [],
+      "tags": {"nodeId":"<nodeId>"}
+    },
+    "orderBy": "DESC",
+  }
+]
+```
+Issues a `POST /v1/telemetry/query` with this payload.
+
+### Example
+
+```json
+driver = ApiDriver("Username", "password")
+try:
+    data = driver.getControllerData(
+        nodeId="NodId",
+        retentionPolicy="retentionPolicy",
+        field="field",
+        lastN=10  // optional
+    )
+finally:
+    driver.close()
+```
