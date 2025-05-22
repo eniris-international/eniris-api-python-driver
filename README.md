@@ -43,8 +43,6 @@ Furthermore, the following methods are exposed:
 
 #### `getControllerData(nodeId: str, retentionPolicy: str, field: str, lastN: int = 1) -> List[Dict]`
 
-Retrieves the last `lastN` points for a given field and node by querying the `/v1/telemetry/query` endpoint.
-
 **Arguments**
 
 - `nodeId` (`str`): unique identifier of the device/node  
