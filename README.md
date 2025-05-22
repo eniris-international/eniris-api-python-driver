@@ -74,7 +74,7 @@ Issues a `POST /v1/telemetry/query` with this payload.
 
 ### Example
 
-```json
+```python
 driver = ApiDriver("Username", "password")
 try:
     data = driver.getControllerData(
