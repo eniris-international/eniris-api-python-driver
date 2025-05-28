@@ -283,8 +283,8 @@ class ApiDriver:
             currentDt = datetime.datetime.now()
             if (
                 self.accessDtAndToken is None
-                or (currentDt - self.accessDtAndToken[0]).total_seconds() > 2 * 60
-            ):  # 2 minutes
+                or (currentDt - self.accessDtAndToken[0]).total_seconds() > 4.0 * 60
+            ):  # 4.0 minutes (max 5 minutes, minus some leeway)
                 try:
                     resp = retryRequest(
                         self.session.get,
