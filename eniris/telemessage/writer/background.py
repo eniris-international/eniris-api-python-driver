@@ -114,7 +114,7 @@ class BackgroundTelemessageWriter(TelemessageWriter):
         initialRetryDelayS: int = 1,
         maximumRetryDelayS: int = 60,
         retryStatusCodes: "Optional[set[int|HTTPStatus]]" = None,
-        maxHeapSize: int = None,
+        maxHeapSize: Optional[int] = None,
         **kwargs
     ):
         self.daemon = BackgroundTelemessageWriterDaemon(
@@ -167,7 +167,7 @@ class BackgroundTelemessageWriterDaemon(Thread):
         initialRetryDelayS: int = 1,
         maximumRetryDelayS: int = 60,
         retryStatusCodes: "Optional[set[int|HTTPStatus]]" = None,
-        maxHeapSize: int = None,
+        maxHeapSize: Optional[int] = None,
         **kwargs
     ):
         super().__init__(
@@ -286,7 +286,7 @@ class BackgroundTelemessageWriterDaemon(Thread):
             failure_reason, failed_tmw = self.__send(tmw)
             # Reschedule failed sends to a later moment
             if failed_tmw is not None:
-                self.__reschedule(failure_reason, failed_tmw)
+                self.__reschedule(str(failure_reason), failed_tmw)
             # Make sure the heap doesn't become too big
             self.__lazy_limit_heap_size()
             # Create snapshots if required
