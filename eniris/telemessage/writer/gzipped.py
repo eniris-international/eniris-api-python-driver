@@ -4,7 +4,7 @@ from eniris.telemessage import Telemessage
 import gzip
 
 
-class GZipTelemessageWriter:
+class GZipTelemessageWriter(TelemessageWriter):
     """
     TelemessageWriter that compresses Telemessages using the gzip algorithm,
     and then passes them on to another TelemessageWriter. If the compression does

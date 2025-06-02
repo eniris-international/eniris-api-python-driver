@@ -106,7 +106,7 @@ class BackgroundTelemessageWriter(TelemessageWriter):
         minimumSnaphotAgeS: float = 60.0,
         snapshotPeriodS: float = 3600.0,
         url: str = "https://neodata-ingress.eniris.be/v1/telemetry",
-        params: "Optional[dict[str, str]]" = None,
+        params: "Optional[dict[str, str|int]]" = None,
         authorizationHeaderFunction: "Callable|None" = None,
         timeoutS: float = 60,
         session: Optional[requests.Session] = None,
