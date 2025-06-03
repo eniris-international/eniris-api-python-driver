@@ -10,7 +10,7 @@ class Telemessage:
 
     parameters: "dict[str, str]"
     data: "bytes"
-    headers: "dict[str,str]|None"
+    headers: "dict[str,str]"
 
     def __init__(
         self,

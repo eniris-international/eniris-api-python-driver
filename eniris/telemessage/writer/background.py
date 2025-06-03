@@ -98,6 +98,7 @@ class BackgroundTelemessageWriter(TelemessageWriter):
         retryStatusCodes (set[int], optional): A set of all response code for which\
             a retry attempt must be made. Defaults to {429, 500, 503}
         maxHeapSize (int, optional): Maximum amount of items that may be on the heap.
+        threadNameSuffix (str, optional): A suffix to add to the thread name.
     """
 
     def __init__(
@@ -115,6 +116,7 @@ class BackgroundTelemessageWriter(TelemessageWriter):
         maximumRetryDelayS: int = 60,
         retryStatusCodes: "Optional[set[int|HTTPStatus]]" = None,
         maxHeapSize: Optional[int] = None,
+        threadNameSuffix: str = "",
         **kwargs
     ):
         self.daemon = BackgroundTelemessageWriterDaemon(
@@ -131,6 +133,7 @@ class BackgroundTelemessageWriter(TelemessageWriter):
                 maximumRetryDelayS,
                 retryStatusCodes,
                 maxHeapSize,
+                threadNameSuffix,
                 **kwargs
             )
         self.daemon.start()
@@ -159,7 +162,7 @@ class BackgroundTelemessageWriterDaemon(Thread):
         minimumSnaphotAgeS: float = 60.0,
         snapshotPeriodS: float = 3600.0,
         url: str = "https://neodata-ingress.eniris.be/v1/telemetry",
-        params: "Optional[dict[str, str]]" = None,
+        params: "Optional[dict[str, str|int]]" = None,
         authorizationHeaderFunction: "Callable|None" = None,
         timeoutS: float = 60,
         session: Optional[requests.Session] = None,
@@ -168,10 +171,11 @@ class BackgroundTelemessageWriterDaemon(Thread):
         maximumRetryDelayS: int = 60,
         retryStatusCodes: "Optional[set[int|HTTPStatus]]" = None,
         maxHeapSize: Optional[int] = None,
+        threadNameSuffix: str = "",
         **kwargs
     ):
         super().__init__(
-            name="bg-telemessage-writer"
+            name="bg-telemessage-writer" + threadNameSuffix
         )
         
         self.url = url
