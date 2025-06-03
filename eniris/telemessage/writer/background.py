@@ -174,6 +174,8 @@ class BackgroundTelemessageWriterDaemon(Thread):
         threadNameSuffix: str = "",
         **kwargs
     ):
+        if threadNameSuffix != "":
+            threadNameSuffix = "-" + threadNameSuffix
         super().__init__(
             name="bg-telemessage-writer" + threadNameSuffix
         )
