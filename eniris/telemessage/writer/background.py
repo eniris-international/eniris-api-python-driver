@@ -177,7 +177,7 @@ class BackgroundTelemessageWriterDaemon(Thread):
         if threadNameSuffix != "":
             threadNameSuffix = "-" + threadNameSuffix
         super().__init__(
-            name="bg-telemessage-writer" + threadNameSuffix
+            name="bg-telemessage-writer-" + threadNameSuffix
         )
         
         self.url = url
