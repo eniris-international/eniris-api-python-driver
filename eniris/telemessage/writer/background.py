@@ -1,6 +1,7 @@
 from typing import Callable, ClassVar, Optional, Union
 from datetime import datetime, timezone, timedelta
 from dataclasses import dataclass
+import math
 from threading import Lock, RLock, Thread, Event
 from heapq import heappop, heappush
 import logging
@@ -9,6 +10,7 @@ import os
 import re
 import pickle
 from time import time
+import random
 
 import requests
 
@@ -209,6 +211,7 @@ class BackgroundTelemessageWriterDaemon(Thread):
             if len(self._new_messages) > 0:
                 self._has_new_messages_or_stop.set()
             
+        self._earliestNextScheduleDt:"datetime" = datetime.now(timezone.utc)
         self._pending_messages:"list[TelemessageWrapper]" = []      # This will function as our heap
         self._no_messages_left = Event()
         self._no_messages_left.set()
@@ -289,8 +292,11 @@ class BackgroundTelemessageWriterDaemon(Thread):
                 self.__take_snapshot()
                 return
             # Try sending it to the database
-            failure_reason, failed_tmw = self.__send(tmw)
+            failure_reason, failed_tmw, earliestNextScheduleDt = self.__send(tmw)
             # Reschedule failed sends to a later moment
+            if earliestNextScheduleDt is not None:
+                self._earliestNextScheduleDt = earliestNextScheduleDt
+                self.__rescheduleAll()
             if failed_tmw is not None:
                 self.__reschedule(str(failure_reason), failed_tmw)
             # Make sure the heap doesn't become too big
@@ -305,7 +311,7 @@ class BackgroundTelemessageWriterDaemon(Thread):
                     self._no_messages_left.set()
             
             
-    def __send(self, tmw:TelemessageWrapper) -> "tuple[str, TelemessageWrapper]|tuple[None, None]":
+    def __send(self, tmw:TelemessageWrapper) -> "tuple[str, TelemessageWrapper, datetime]|tuple[None, None, None]":
         """
         Send the Telemessage to the database.
         If the sending fails, then the reason and the telemessage wrapper is returned.
@@ -324,33 +330,57 @@ class BackgroundTelemessageWriterDaemon(Thread):
                 headers={**headers, **tmw.telemessage.headers},
                 timeout=self.timeoutS,
             )
-            if resp.status_code == 204:
-                return None, None
+            if 200 <= resp.status_code < 300:
+                return None, None, None
             elif resp.status_code in self.retryStatusCodes:
                 return (
                     f"response with status code {resp.status_code} "
                     + f"({HTTPStatus(resp.status_code).phrase}): {resp.text}",
                     tmw,
+                    self.__getEarliestNextScheduleDt(resp=resp),
                 )
             else:
                 logging.error(
                     " ".join(
                         [
-                            "Dropping telemessage due to",
+                            f"Dropping telemessage {tmw.subId} due to",
                             f"response with status code {resp.status_code}",
                             f"({HTTPStatus(resp.status_code).phrase}): {resp.text}.",
                             f"Request telemessage data: {tmw.telemessage.data}",
                         ]
                     )
                 )
-                return None, None
+                return None, None, None
         except requests.Timeout:
-            return ("timeout", tmw)
+            return ("timeout", tmw, self.__getEarliestNextScheduleDt())
         except requests.ConnectionError:
-            return ("connection error", tmw)
+            return ("connection error", tmw, self.__getEarliestNextScheduleDt())
         except Exception:  # pylint: disable=broad-exception-caught
-            logging.exception("Dropping telemessage due to unexpected exception")
-            return None, None
+            logging.exception(f"Dropping telemessage {tmw.subId} due to unexpected exception")
+            return None, None, None
+        
+        
+    def __getEarliestNextScheduleDt(self, resp: Optional["requests.Response"] = None) -> datetime:
+        """
+        Get the earlist time that a new message may be sent. This is based on the "retry-after" header of
+        a server response, or 60 seconds plus some jitter time.
+        """
+        if resp is not None and "retry-after" in resp.headers:
+            retryAfterStr = resp.headers["retry-after"]
+            try:
+                retryAfterFloat = float(retryAfterStr)
+                if not math.isfinite(retryAfterFloat):
+                    raise ValueError(f"Invalid 'retry-after' header: {retryAfterStr}")
+            except ValueError as ex:
+                logging.warning(
+                    f"Invalid 'retry-after' header will be ignored: {retryAfterStr}"
+                )
+                # Introduce some jitter to avoid crushing the server
+                retryAfterFloat = 60.0 + random.random()*20.0
+        else:
+            # Introduce some jitter to avoid crushing the server
+            retryAfterFloat = 60.0 + random.random()*20.0
+        return datetime.now(timezone.utc) + timedelta(seconds=retryAfterFloat)
             
             
     def __get_next(self) -> "TelemessageWrapper|None":
@@ -379,6 +409,8 @@ class BackgroundTelemessageWriterDaemon(Thread):
             # Put all new messages (if any) on the heap
             with self._lock:
                 for tmw in self._new_messages:
+                    # Make sure that new messages are never scheduled earlier than allowed
+                    tmw._scheduledDt = max(tmw._scheduledDt, self._earliestNextScheduleDt)
                     heappush(self._pending_messages, tmw)
                 self._new_messages = []
                 self._has_new_messages_or_stop.clear()
@@ -396,23 +428,37 @@ class BackgroundTelemessageWriterDaemon(Thread):
                     # Else returning None signals to snapshot all pending messages
                     return None
             elif len(self._pending_messages) > 0:
-                # if not self._stop.is_set(), then there should always be pending messages - but better safe than sorry so check!
-                # Get the message that is scheduled to be send first
-                return heappop(self._pending_messages)
+                if self._pending_messages[0]._scheduledDt > datetime.now(timezone.utc):
+                    # Wait if the next pending message is scheduled to be send in the future
+                    wait_timeout_s = max(0.0, (self._pending_messages[0]._scheduledDt - datetime.now(timezone.utc)).total_seconds())
+                    continue
+                else:
+                    # if not self._stop.is_set(), then there should always be pending messages - but better safe than sorry so check!
+                    # Get the message that is scheduled to be send first
+                    return heappop(self._pending_messages)
             else:
                 # There are no pending messages, so wait until new messages arrive
                 wait_timeout_s = None
     
     
+    def __rescheduleAll(self):
+        """Make sure no pending messages are scheduled to be send before the earliest next schedule time."""
+        for tmw in self._pending_messages:
+            tmw._scheduledDt = max(tmw._scheduledDt, self._earliestNextScheduleDt)
+    
+    
     def __reschedule(self, reason:str, tmw:TelemessageWrapper):
-        """ Reschedule sending the telemessage to a later moment - if possible - otherwise it is dropped. """
+        """Reschedule sending the telemessage to a later moment - if possible - otherwise it is dropped. """
         if tmw._retryNr + 1 <= self.maximumRetries:
-            logging.warning(f"Retrying request after {reason}")
-            self._scheduledDt = datetime.now(timezone.utc) + timedelta(
-                seconds=min(
-                    self.initialRetryDelayS * 2**tmw._retryNr,
-                    self.maximumRetryDelayS,
-                )
+            logging.warning(f"Retrying request for tmw {tmw.subId} after {reason}")
+            tmw._scheduledDt = max(
+                datetime.now(timezone.utc) + timedelta(
+                    seconds=min(
+                        self.initialRetryDelayS * 2**tmw._retryNr,
+                        self.maximumRetryDelayS,
+                    )
+                ),
+                self._earliestNextScheduleDt,
             )
             tmw._retryNr += 1
             heappush(self._pending_messages, tmw)
