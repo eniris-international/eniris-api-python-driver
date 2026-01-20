@@ -523,3 +523,13 @@ class Point:
             "tags": dict(self._tags),
             "fields": dict(self._fields),
         }
+        
+    def copy(self):
+        """Returns a copy of the Point object"""
+        return Point(
+            namespace=self._namespace.copy(),
+            measurement=self._measurement,
+            time=self._time,
+            tags=self._tags.copy(),
+            fields=self._fields.copy(),
+        )

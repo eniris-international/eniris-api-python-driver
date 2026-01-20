@@ -79,6 +79,10 @@ class Namespace:
         converted back into the object using the Namespace.fromJson method"""
         return {**asdict(self), "version": self.version()}
 
+    def copy(self) -> "Namespace":
+        """Returns a copy of the Namespace object"""
+        raise NotImplementedError("This method should be overrriden in child classes")
+
 
 @dataclass
 class V1Namespace(Namespace):
@@ -165,6 +169,10 @@ class V1Namespace(Namespace):
 
     def toUrlParameters(self):
         return {"db": self._database, "rp": self._retentionPolicy}
+
+    def copy(self) -> "Namespace":
+        """Returns a copy of the Namespace object"""
+        return V1Namespace(database=self._database, retentionPolicy=self._retentionPolicy)
 
 
 @dataclass
@@ -255,6 +263,12 @@ class V2Namespace(Namespace):
     def toUrlParameters(self):
         return {"org": self._organization, "bucket": self._bucket}
 
+    def copy(self) -> "Namespace":
+        """Returns a copy of the Namespace object"""
+        return V2Namespace(
+            organization=self._organization, bucket=self._bucket
+        )
+
 
 @dataclass
 class V3Namespace(Namespace):
@@ -303,3 +317,7 @@ class V3Namespace(Namespace):
 
     def toUrlParameters(self):
         return {"namespace": self._name}
+
+    def copy(self) -> "Namespace":
+        """Returns a copy of the Namespace object"""
+        return V3Namespace(name=self._name)
