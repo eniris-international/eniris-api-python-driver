@@ -360,13 +360,15 @@ class ApiDriver:
             self.session.get,
             path,
             params=params,
-            authorizationHeaderFunction=self.accesstoken,
-            timeout=self.timeoutS,
-            maximumRetries=self.maximumRetries,
-            initialRetryDelayS=self.initialRetryDelayS,
-            maximumRetryDelayS=self.maximumRetryDelayS,
-            retryStatusCodes=self.retryStatusCodes,
-            **kwargs,
+            **{
+                "authorizationHeaderFunction": self.accesstoken,
+                "timeout": self.timeoutS,
+                "maximumRetries": self.maximumRetries,
+                "initialRetryDelayS": self.initialRetryDelayS,
+                "maximumRetryDelayS": self.maximumRetryDelayS,
+                "retryStatusCodes": self.retryStatusCodes,
+                **kwargs,
+            }
         )
 
     def post(
@@ -393,13 +395,15 @@ class ApiDriver:
             json=json,
             params=params,
             data=data,
-            authorizationHeaderFunction=self.accesstoken,
-            timeout=self.timeoutS,
-            maximumRetries=self.maximumRetries,
-            initialRetryDelayS=self.initialRetryDelayS,
-            maximumRetryDelayS=self.maximumRetryDelayS,
-            retryStatusCodes=self.retryStatusCodes,
-            **kwargs,
+            **{
+                "authorizationHeaderFunction": self.accesstoken,
+                "timeout": self.timeoutS,
+                "maximumRetries": self.maximumRetries,
+                "initialRetryDelayS": self.initialRetryDelayS,
+                "maximumRetryDelayS": self.maximumRetryDelayS,
+                "retryStatusCodes": self.retryStatusCodes,
+                **kwargs
+            }
         )
 
     def put(
@@ -426,13 +430,15 @@ class ApiDriver:
             json=json,
             params=params,
             data=data,
-            authorizationHeaderFunction=self.accesstoken,
-            timeout=self.timeoutS,
-            maximumRetries=self.maximumRetries,
-            initialRetryDelayS=self.initialRetryDelayS,
-            maximumRetryDelayS=self.maximumRetryDelayS,
-            retryStatusCodes=self.retryStatusCodes,
-            **kwargs,
+            **{
+                "authorizationHeaderFunction": self.accesstoken,
+                "timeout": self.timeoutS,
+                "maximumRetries": self.maximumRetries,
+                "initialRetryDelayS": self.initialRetryDelayS,
+                "maximumRetryDelayS": self.maximumRetryDelayS,
+                "retryStatusCodes": self.retryStatusCodes,
+                **kwargs,
+            }
         )
 
     def delete(self, path: str, params=None, **kwargs) -> requests.Response:
@@ -454,11 +460,13 @@ class ApiDriver:
             self.session.delete,
             path,
             params=params,
-            authorizationHeaderFunction=self.accesstoken,
-            timeout=self.timeoutS,
-            maximumRetries=self.maximumRetries,
-            initialRetryDelayS=self.initialRetryDelayS,
-            maximumRetryDelayS=self.maximumRetryDelayS,
-            retryStatusCodes=self.retryStatusCodes,
-            **kwargs,
+            **{
+                "authorizationHeaderFunction": self.accesstoken,
+                "timeout": self.timeoutS,
+                "maximumRetries": self.maximumRetries,
+                "initialRetryDelayS": self.initialRetryDelayS,
+                "maximumRetryDelayS": self.maximumRetryDelayS,
+                "retryStatusCodes": self.retryStatusCodes,
+                **kwargs,
+            }
         )
