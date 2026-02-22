@@ -6,6 +6,7 @@ import time
 import math
 from threading import RLock
 from http import HTTPStatus
+from typing import Optional
 
 import requests
 
@@ -470,3 +471,41 @@ class ApiDriver:
                 **kwargs,
             }
         )
+        
+    def getControllerData(
+        self,
+        nodeId: str,
+        retentionPolicy: str,
+        field: str,
+        lastN: Optional[int] = None,
+    ) -> list:
+        path = "/v1/telemetry/query"
+
+        q: dict = {
+                "select": [field],
+                "from": {
+                    "database": "beauvent",          
+                    "retentionPolicy": retentionPolicy,
+                    "measurement":    "submeteringMetrics"
+                },
+                "where": {
+                    "time": [],          
+                    "tags": {"nodeId": nodeId}
+                },
+                "orderBy": "DESC",
+            }
+            
+        # If no lastN is specified
+        if lastN is not None:
+            q["limit"] = lastN
+
+        query = [q]
+        # POST JSON → /v1/telemetry/query
+        resp = self.post(path, json=query)
+        if resp.status_code != 200:
+            raise RuntimeError(f"getControllerData failed ({resp.status_code}): {resp.text}")
+
+        return resp.json() 
+
+
+
