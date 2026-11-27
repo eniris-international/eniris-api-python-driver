@@ -152,6 +152,7 @@ def retryRequest(
 
 REFRESHTOKEN_LIFETIME_DURATION_S = 13 * 24 * 60 * 60
 REFRESHTOKEN_FRESHNESS_DURATION_S = 7 * 24 * 60 * 60
+REJECTED_REFRESHTOKEN_LOGIN_INTERVAL_S = 60
 
 
 class ApiDriver:
@@ -208,9 +209,97 @@ class ApiDriver:
         )
         self.refreshTokenLock = RLock()
         self.refreshDtAndToken = None
+        self._rejectedRefreshtokenLoginS: "Optional[float]" = None
         self.accessTokenLock = RLock()
         self.accessDtAndToken = None
         self.session = requests.Session() if session is None else session
+
+    def _loginWithCredentials(self, maximumRetries: "Optional[int]" = None):
+        """Log in with the username and password. The refresh token which is stored
+        in the driver is left as it is
+
+        Args:
+            maximumRetries (int, optional): How many times to try again in case of a \
+              failure. Defaults to the maximumRetries of the driver
+
+        Raises:
+            AuthenticationFailure: The login was refused or not answered in time
+
+        Returns:
+            tuple: The moment of the login and the refresh token it resulted in
+        """
+        currentDt = datetime.datetime.now()
+        data = {"username": self.username, "password": self.password}
+        try:
+            resp = retryRequest(
+                self.session.post,
+                f"{self.authUrl}/auth/login",
+                json=data,
+                timeout=self.timeoutS,
+                maximumRetries=(
+                    self.maximumRetries if maximumRetries is None else maximumRetries
+                ),
+                initialRetryDelayS=self.initialRetryDelayS,
+                maximumRetryDelayS=self.maximumRetryDelayS,
+                retryStatusCodes=self.retryStatusCodes,
+            )
+            if resp.status_code != 200:
+                raise AuthenticationFailure(f"Unable to login: {resp.text}")
+        except requests.Timeout as ex:
+            raise AuthenticationFailure(
+                "Unable to login: the API did not respond in time"
+            ) from ex
+        return (currentDt, resp.text)
+
+    def _replaceRejectedRefreshtoken(self, rejectedDtAndToken) -> bool:
+        """Log in again after the authentication server rejected (HTTP 401) a refresh
+        token which should, judging by its age, still be valid: it was revoked, or
+        the server does not know it anymore.
+
+        This happens at most once every REJECTED_REFRESHTOKEN_LOGIN_INTERVAL_S
+        seconds, counted from the end of the previous such login, so that a login
+        which takes long (a server which is slow, overloaded or does not answer) is
+        not followed by the next one at once. The login is a single attempt, without
+        the retries of the driver: the interval takes their place. When the login
+        fails, the rejected token stays in place: a driver without a refresh token
+        logs in at every call, a driver with a rejected one only does so when the
+        interval has passed.
+
+        Args:
+            rejectedDtAndToken (tuple, optional): The refresh token which was stored \
+              before the rejected access token request
+
+        Raises:
+            AuthenticationFailure: The login was refused or not answered in time
+
+        Returns:
+            bool: True if a new refresh token was stored
+        """
+        with self.refreshTokenLock:
+            if (
+                rejectedDtAndToken is None
+                or self.refreshDtAndToken is not rejectedDtAndToken
+            ):
+                # The rejected token is the result of a login or a renewal during the
+                # access token request itself: another login will not help
+                return False
+            if self.username is None or self.password is None:
+                # A driver which was only given a refresh token cannot log in
+                return False
+            if (
+                self._rejectedRefreshtokenLoginS is not None
+                and time.monotonic() - self._rejectedRefreshtokenLoginS
+                < REJECTED_REFRESHTOKEN_LOGIN_INTERVAL_S
+            ):
+                return False
+            logging.warning(
+                "The authentication server rejected the refresh token, logging in again"
+            )
+            try:
+                self.refreshDtAndToken = self._loginWithCredentials(maximumRetries=0)
+            finally:
+                self._rejectedRefreshtokenLoginS = time.monotonic()
+            return True
 
     def refreshtoken(self):
         """Get a refresh token to authenticate with the API
@@ -225,25 +314,7 @@ class ApiDriver:
                 or (currentDt - self.refreshDtAndToken[0]).total_seconds()
                 > REFRESHTOKEN_LIFETIME_DURATION_S
             ):  # 13 days
-                data = {"username": self.username, "password": self.password}
-                try:
-                    resp = retryRequest(
-                        self.session.post,
-                        f"{self.authUrl}/auth/login",
-                        json=data,
-                        timeout=self.timeoutS,
-                        maximumRetries=self.maximumRetries,
-                        initialRetryDelayS=self.initialRetryDelayS,
-                        maximumRetryDelayS=self.maximumRetryDelayS,
-                        retryStatusCodes=self.retryStatusCodes,
-                    )
-                    if resp.status_code != 200:
-                        raise AuthenticationFailure(f"Unable to login: {resp.text}")
-                except requests.Timeout as ex:
-                    raise AuthenticationFailure(
-                        "Unable to login: the API did not respond in time"
-                    ) from ex
-                self.refreshDtAndToken = (currentDt, resp.text)
+                self.refreshDtAndToken = self._loginWithCredentials()
             elif (
                 currentDt - self.refreshDtAndToken[0]
             ).total_seconds() > REFRESHTOKEN_FRESHNESS_DURATION_S:
@@ -273,8 +344,26 @@ class ApiDriver:
                     )
             return f"Bearer {self.refreshDtAndToken[1]}"
 
+    def _requestAccesstoken(self) -> requests.Response:
+        """Ask the authentication server for an access token, using the refresh token"""
+        return retryRequest(
+            self.session.get,
+            f"{self.authUrl}/auth/accesstoken",
+            authorizationHeaderFunction=self.refreshtoken,
+            timeout=self.timeoutS,
+            maximumRetries=self.maximumRetries,
+            initialRetryDelayS=self.initialRetryDelayS,
+            maximumRetryDelayS=self.maximumRetryDelayS,
+            retryStatusCodes=self.retryStatusCodes,
+        )
+
     def accesstoken(self):
         """Get an access token to authenticate with the API
+
+        When the authentication server rejects the stored refresh token (HTTP 401),
+        for example because it was revoked, the driver logs in again with the
+        username and password and asks for the access token once more. It does so
+        at most once every REJECTED_REFRESHTOKEN_LOGIN_INTERVAL_S seconds.
 
         Returns:
             string: An access token of the format `Bearer token`
@@ -286,16 +375,12 @@ class ApiDriver:
                 or (currentDt - self.accessDtAndToken[0]).total_seconds() > 3.75 * 60
             ):  # 3.75 minutes (max 5 minutes, minus some leeway)
                 try:
-                    resp = retryRequest(
-                        self.session.get,
-                        f"{self.authUrl}/auth/accesstoken",
-                        authorizationHeaderFunction=self.refreshtoken,
-                        timeout=self.timeoutS,
-                        maximumRetries=self.maximumRetries,
-                        initialRetryDelayS=self.initialRetryDelayS,
-                        maximumRetryDelayS=self.maximumRetryDelayS,
-                        retryStatusCodes=self.retryStatusCodes,
-                    )
+                    storedRefreshDtAndToken = self.refreshDtAndToken
+                    resp = self._requestAccesstoken()
+                    if resp.status_code == 401 and self._replaceRejectedRefreshtoken(
+                        storedRefreshDtAndToken
+                    ):
+                        resp = self._requestAccesstoken()
                     if resp.status_code != 200:
                         raise AuthenticationFailure(
                             f"Unable to collect an access token: {resp.text}"
