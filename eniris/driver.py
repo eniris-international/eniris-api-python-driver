@@ -214,9 +214,13 @@ class ApiDriver:
         self.accessDtAndToken = None
         self.session = requests.Session() if session is None else session
 
-    def _loginWithCredentials(self):
+    def _loginWithCredentials(self, maximumRetries: "Optional[int]" = None):
         """Log in with the username and password. The refresh token which is stored
         in the driver is left as it is
+
+        Args:
+            maximumRetries (int, optional): How many times to try again in case of a \
+              failure. Defaults to the maximumRetries of the driver
 
         Raises:
             AuthenticationFailure: The login was refused or not answered in time
@@ -232,7 +236,9 @@ class ApiDriver:
                 f"{self.authUrl}/auth/login",
                 json=data,
                 timeout=self.timeoutS,
-                maximumRetries=self.maximumRetries,
+                maximumRetries=(
+                    self.maximumRetries if maximumRetries is None else maximumRetries
+                ),
                 initialRetryDelayS=self.initialRetryDelayS,
                 maximumRetryDelayS=self.maximumRetryDelayS,
                 retryStatusCodes=self.retryStatusCodes,
@@ -251,9 +257,13 @@ class ApiDriver:
         the server does not know it anymore.
 
         This happens at most once every REJECTED_REFRESHTOKEN_LOGIN_INTERVAL_S
-        seconds. When the login fails, the rejected token stays in place: a driver
-        without a refresh token logs in at every call, a driver with a rejected one
-        only does so when the interval has passed.
+        seconds, counted from the end of the previous such login, so that a login
+        which takes long (a server which is slow, overloaded or does not answer) is
+        not followed by the next one at once. The login is a single attempt, without
+        the retries of the driver: the interval takes their place. When the login
+        fails, the rejected token stays in place: a driver without a refresh token
+        logs in at every call, a driver with a rejected one only does so when the
+        interval has passed.
 
         Args:
             rejectedDtAndToken (tuple, optional): The refresh token which was stored \
@@ -276,18 +286,19 @@ class ApiDriver:
             if self.username is None or self.password is None:
                 # A driver which was only given a refresh token cannot log in
                 return False
-            nowS = time.monotonic()
             if (
                 self._rejectedRefreshtokenLoginS is not None
-                and nowS - self._rejectedRefreshtokenLoginS
+                and time.monotonic() - self._rejectedRefreshtokenLoginS
                 < REJECTED_REFRESHTOKEN_LOGIN_INTERVAL_S
             ):
                 return False
-            self._rejectedRefreshtokenLoginS = nowS
             logging.warning(
                 "The authentication server rejected the refresh token, logging in again"
             )
-            self.refreshDtAndToken = self._loginWithCredentials()
+            try:
+                self.refreshDtAndToken = self._loginWithCredentials(maximumRetries=0)
+            finally:
+                self._rejectedRefreshtokenLoginS = time.monotonic()
             return True
 
     def refreshtoken(self):

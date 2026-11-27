@@ -8,7 +8,7 @@ import datetime
 import json
 import threading
 import unittest
-from typing import Optional, Union
+from typing import Callable, Optional, Union
 from unittest import mock
 
 import requests
@@ -30,8 +30,9 @@ REJECTED = (
 )
 
 
-# What a test lets the fake server answer: a status code and a text, or an exception
-Answer = Optional[Union["tuple[int, str]", Exception]]
+# What a test lets the fake server answer: a status code and a text, or an exception,
+# or a function which returns one of those
+Answer = Optional[Union["tuple[int, str]", Exception, Callable]]
 
 
 def response(statusCode: int, text: str) -> requests.Response:
@@ -99,6 +100,9 @@ class FakeServer:
     def _answer(answer: Answer, normalAnswer, *args):
         """The answer a test asked for, or else the normal one. A response with an
         error status counts as False, so it cannot be chosen with `or`"""
+        if callable(answer):
+            # Lets a test make something happen while the server answers
+            answer = answer()
         if answer is None:
             return normalAnswer(*args)
         if isinstance(answer, Exception):
@@ -126,14 +130,17 @@ class AuthenticationTest(unittest.TestCase):
         self.nowS = 1000.0
 
     def makeDriver(
-        self, username: Optional[str] = "user", password: Optional[str] = "secret"
+        self,
+        username: Optional[str] = "user",
+        password: Optional[str] = "secret",
+        maximumRetries: int = 0,
     ) -> ApiDriver:
         return ApiDriver(
             username,  # type: ignore
             password,  # type: ignore
             authUrl=AUTH_URL,
             apiUrl=API_URL,
-            maximumRetries=0,
+            maximumRetries=maximumRetries,
             session=self.server,  # type: ignore
         )
 
@@ -144,6 +151,13 @@ class AuthenticationTest(unittest.TestCase):
         )
         patcher.start()
         self.addCleanup(patcher.stop)
+
+    def patchSleep(self, sideEffect=None) -> mock.MagicMock:
+        """Let the retries of the driver wait without taking time"""
+        patcher = mock.patch.object(driverModule.time, "sleep", side_effect=sideEffect)
+        sleep = patcher.start()
+        self.addCleanup(patcher.stop)
+        return sleep
 
     def ageAccesstoken(self):
         """Make the driver ask for a new access token at its next call"""
@@ -232,6 +246,66 @@ class AuthenticationTest(unittest.TestCase):
                 with self.assertLogs(level="WARNING"):
                     self.assertEqual(self.driver.get("/v1/device").text, "data")
                 self.assertEqual(self.server.logins, 3)
+
+    def testSlowFailedLoginIsNotFollowedByTheNextAtOnce(self):
+        """The interval is counted from the end of the login: when the server does
+        not answer the login in time, the calls during the next interval do not
+        wait for another login"""
+        self.controlTheClock()
+        self.loggedInDriverWithRevokedRefreshtoken()
+
+        def unansweredLogin():
+            self.nowS += REJECTED_REFRESHTOKEN_LOGIN_INTERVAL_S + 5
+            return requests.Timeout()
+
+        self.server.loginAnswer = unansweredLogin
+        with self.assertLogs(level="WARNING"):
+            self.assertRejected("Unable to login: the API did not respond in time")
+        self.assertEqual(self.server.logins, 2)
+
+        self.assertRejected()
+        self.nowS += REJECTED_REFRESHTOKEN_LOGIN_INTERVAL_S - 1
+        self.assertRejected()
+        self.assertEqual(self.server.logins, 2)
+
+        self.server.loginAnswer = None
+        self.nowS += 2
+        with self.assertLogs(level="WARNING"):
+            self.assertEqual(self.driver.get("/v1/device").text, "data")
+        self.assertEqual(self.server.logins, 3)
+
+    def testLoginAfterARejectedTokenIsOneAttempt(self):
+        """The retries of the driver (each one after a 503 waits 60 s) are not
+        used for this login: the interval takes their place"""
+        answers = [
+            ((503, "Service Unavailable"), AuthenticationFailure),
+            (requests.Timeout(), AuthenticationFailure),
+            (requests.ConnectionError(), requests.ConnectionError),
+        ]
+        for loginAnswer, expectedError in answers:
+            with self.subTest(loginAnswer=loginAnswer):
+                self.setUp()
+                self.driver = self.makeDriver(maximumRetries=4)
+                sleep = self.patchSleep()
+                self.loggedInDriverWithRevokedRefreshtoken()
+                self.server.loginAnswer = loginAnswer
+                with self.assertLogs(level="WARNING"), self.assertRaises(expectedError):
+                    self.driver.accesstoken()
+                self.assertEqual(self.server.logins, 2)
+                sleep.assert_not_called()
+
+    def testFirstLoginKeepsTheRetriesOfTheDriver(self):
+        self.driver = self.makeDriver(maximumRetries=4)
+        self.server.loginAnswer = (503, "Service Unavailable")
+
+        def serverRecovers(_delayS):
+            self.server.loginAnswer = None
+
+        sleep = self.patchSleep(serverRecovers)
+        with self.assertLogs(level="WARNING"):
+            self.assertEqual(self.driver.get("/v1/device").text, "data")
+        self.assertEqual(self.server.logins, 2)
+        sleep.assert_called_once()
 
     def testRefusedCredentialsAreReportedAndNotTriedAtEveryCall(self):
         self.loggedInDriverWithRevokedRefreshtoken()
